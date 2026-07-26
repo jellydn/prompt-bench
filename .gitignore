@@ -28,3 +28,6 @@ docker-data/
 /frontend/tsconfig.node.tsbuildinfo
 /frontend/tsconfig.tsbuildinfo
 /backend/promptbench.db
+frontend/vite.config.d.ts
+frontend/tsconfig.node.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
