@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     ollama_base_url: str = "http://localhost:11434"
     vllm_base_url: str = "http://localhost:8001"
-    cors_origins: list[str] = ["http://localhost:5173"]
+    cors_origins: list[str] = ["http://localhost:5173", "https://prompt-bench.fly.dev"]
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

@@ -1,6 +1,22 @@
-# PromptBench
+<h1 align="center">Welcome to PromptBench 👋</h1>
 
-Open-source benchmarking tool for comparing AI prompts and models by cost, latency, token usage, and output quality.
+<p align="center">
+  <a href="https://github.com/jellydn/prompt-bench">
+    <img alt="GitHub stars" src="https://img.shields.io/github/stars/jellydn/prompt-bench" />
+  </a>
+  <a href="https://github.com/jellydn/prompt-bench/blob/main/LICENSE">
+    <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg" />
+  </a>
+  <a href="https://twitter.com/jellydn">
+    <img alt="Twitter: jellydn" src="https://img.shields.io/twitter/follow/jellydn.svg?style=social" />
+  </a>
+</p>
+
+<p align="center">
+  Open-source benchmarking tool for comparing AI prompts and models by cost, latency, token usage, and output quality.
+</p>
+
+[![IT Man - How I Built PromptBench: Open-Source AI Benchmarking Tool with React & FastAPI](https://i.ytimg.com/vi/hzSKeI4tMPk/hqdefault.jpg)](https://www.youtube.com/watch?v=hzSKeI4tMPk)
 
 ## Features
 
@@ -63,12 +79,10 @@ npm run dev
 just lint       # ruff + eslint
 just format     # ruff format + prettier
 just clean      # remove all build artifacts
-cd backend && uv run --extra dev pytest  # run tests (29 total)
+cd backend && uv run --extra dev pytest  # run tests
 ```
 
 ### Environment Variables
-
-Copy `backend/.env.example` to `backend/.env` and add your API keys:
 
 ```bash
 cd backend
@@ -76,27 +90,15 @@ cp .env.example .env
 # Then edit .env with your API keys
 ```
 
-The backend looks for `.env` in the `backend/` directory automatically.
-
 ## Testing with OpenRouter Free Models
 
-PromptBench ships with a curated set of OpenRouter **free models** (zero-cost
-inference) so you can benchmark end-to-end without spending anything.
+PromptBench ships with a curated set of OpenRouter **free models** (zero-cost inference) so you can benchmark end-to-end without spending anything.
 
 - **Free model collection:** https://openrouter.ai/collections/free-models
-- **Get an API key:** https://openrouter.ai/keys — OpenRouter keys start with
-  `sk-or-v1-`. (A key starting with `sk-proj-` is an **OpenAI** key and will be
-  rejected by OpenRouter with `401 Unauthorized`.)
-- Set `OPENROUTER_API_KEY=sk-or-v1-...` in `backend/.env`, then restart the
-  backend.
-- Free model IDs generally end in `:free` (for example
-  `google/gemma-4-31b-it:free`). PromptBench also exposes `openrouter/free`, a
-  router that picks an available free model automatically.
-- Estimated cost is **$0** for free models, but free models are subject to
-  OpenRouter rate limits and provider availability, which can change at any
-  time.
+- **Get an API key:** https://openrouter.ai/keys — OpenRouter keys start with `sk-or-v1-`. (A key starting with `sk-proj-` is an **OpenAI** key and will be rejected with `401 Unauthorized`.)
+- Free model IDs generally end in `:free`. PromptBench also exposes `openrouter/free`, a router that picks an available free model automatically.
 
-### Example: benchmark a free model via curl
+### Example
 
 ```bash
 curl -X POST http://localhost:8000/api/benchmarks -H 'Content-Type: application/json' -d '{
@@ -108,7 +110,7 @@ curl -X POST http://localhost:8000/api/benchmarks -H 'Content-Type: application/
 }'
 ```
 
-### Available free models (curated)
+### Available free models
 
 | Model ID                                             | Notes                                |
 | ---------------------------------------------------- | ------------------------------------ |
@@ -124,9 +126,6 @@ curl -X POST http://localhost:8000/api/benchmarks -H 'Content-Type: application/
 | `poolside/laguna-m.1:free`                           | Flagship coding agent                |
 | `inclusionai/ling-3.0-flash:free`                    | 124B MoE, token-efficient            |
 
-OpenRouter recommends sending attribution headers (`HTTP-Referer`, `X-Title`);
-PromptBench sends them automatically on every OpenRouter request.
-
 ## API Overview
 
 | Method | Endpoint               | Description                 |
@@ -138,6 +137,22 @@ PromptBench sends them automatically on every OpenRouter request.
 | DELETE | `/api/benchmarks/{id}` | Delete a benchmark          |
 | GET    | `/api/insights`        | Cost & performance insights |
 
+## Author
+
+👤 **Dung Huynh**
+
+- Website: https://productsway.com/
+- Twitter: [@jellydn](https://twitter.com/jellydn)
+- Github: [@jellydn](https://github.com/jellydn)
+
+## Show your support
+
+Give a ⭐️ if this project helped you!
+
+[![kofi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/dunghd)
+[![paypal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/dunghd)
+[![buymeacoffee](https://img.shields.io/badge/Buy_Me_A_Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/dunghd)
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE) for details.

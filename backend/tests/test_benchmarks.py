@@ -17,7 +17,7 @@ class TestBenchmarkEndpoints:
     """Benchmark API behavior, validation, and edge cases."""
 
     def test_health(self, client):
-        resp = client.get("/")
+        resp = client.get("/api/health")
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
 
@@ -139,20 +139,24 @@ class TestProviderMockTransport:
 
     @pytest.mark.asyncio
     async def test_openai_malformed_sse_skipped(self):
-        parsed = await _mock_parse_sse([
-            'data: {"choices":[{"delta":{"content":"Hello"}}]}',
-            "data: not valid json",
-            "data: [DONE]",
-        ])
+        parsed = await _mock_parse_sse(
+            [
+                'data: {"choices":[{"delta":{"content":"Hello"}}]}',
+                "data: not valid json",
+                "data: [DONE]",
+            ]
+        )
         assert parsed == "Hello"
 
     @pytest.mark.asyncio
     async def test_openai_empty_delta(self):
-        parsed = await _mock_parse_sse([
-            'data: {"choices":[{"delta":{}}]}',
-            'data: {"choices":[{"delta":{"content":"hello"}}]}',
-            "data: [DONE]",
-        ])
+        parsed = await _mock_parse_sse(
+            [
+                'data: {"choices":[{"delta":{}}]}',
+                'data: {"choices":[{"delta":{"content":"hello"}}]}',
+                "data: [DONE]",
+            ]
+        )
         assert parsed == "hello"
 
     @pytest.mark.asyncio
@@ -166,9 +170,9 @@ class TestProviderMockTransport:
 async def _mock_parse_sse(events):
     """Parse SSE events via mocked transport."""
     content = "\n\n".join(events) + "\n\n"
-    transport = httpx.MockTransport(lambda r: httpx.Response(
-        200, text=content, headers={"Content-Type": "text/event-stream"}
-    ))
+    transport = httpx.MockTransport(
+        lambda r: httpx.Response(200, text=content, headers={"Content-Type": "text/event-stream"})
+    )
     parts = []
     async with httpx.AsyncClient(transport=transport) as client:
         async with client.stream("POST", "http://test/", json={}) as response:
@@ -194,10 +198,14 @@ async def _mock_ollama_parse(events):
     first = None
     parts = []
     final = {}
-    async with httpx.AsyncClient(transport=transport) as client, client.stream(
-        "POST", "http://ollama.local/api/chat",
-        json={"model": "test", "messages": [], "stream": True},
-    ) as response:
+    async with (
+        httpx.AsyncClient(transport=transport) as client,
+        client.stream(
+            "POST",
+            "http://ollama.local/api/chat",
+            json={"model": "test", "messages": [], "stream": True},
+        ) as response,
+    ):
         response.raise_for_status()
         async for line in response.aiter_lines():
             if not line:

@@ -24,7 +24,10 @@ class Base(DeclarativeBase):
 
 _engine_url = settings.database_url
 # Normalize postgresql:// → postgresql+psycopg:// for psycopg v3 driver support
-if _engine_url.startswith("postgresql://") and "+psycopg" not in _engine_url:
+# Also handle postgres:// (used by some providers like Fly.io)
+if _engine_url.startswith("postgres://") and "+psycopg" not in _engine_url:
+    _engine_url = _engine_url.replace("postgres://", "postgresql+psycopg://", 1)
+elif _engine_url.startswith("postgresql://") and "+psycopg" not in _engine_url:
     _engine_url = _engine_url.replace("postgresql://", "postgresql+psycopg://", 1)
 
 if _engine_url.startswith("sqlite"):
