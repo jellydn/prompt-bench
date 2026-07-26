@@ -4,6 +4,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     database_url: str = "sqlite:///./promptbench.db"
+    database_pool_size: int = 10
+    database_max_overflow: int = 20
     openai_api_key: str = ""
     anthropic_api_key: str = ""
     gemini_api_key: str = ""
