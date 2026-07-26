@@ -17,19 +17,16 @@ class OllamaProvider(BaseProvider):
         return True
 
     def get_models(self):
-        return [
-            ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.names.items()
-        ]
+        return [ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.names.items()]
 
-    async def generate(
-        self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000
-    ):
-        messages = (
-            [{"role": "system", "content": system_prompt}] if system_prompt else []
-        ) + [{"role": "user", "content": prompt}]
+    async def generate(self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000):
+        messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + [
+            {"role": "user", "content": prompt}
+        ]
         started, first, parts, final = time.perf_counter(), None, [], {}
-        async with httpx.AsyncClient(timeout=120) as client:
-            async with client.stream(
+        async with (
+            httpx.AsyncClient(timeout=120) as client,
+            client.stream(
                 "POST",
                 settings.ollama_base_url.rstrip("/") + "/api/chat",
                 json={
@@ -38,16 +35,17 @@ class OllamaProvider(BaseProvider):
                     "stream": True,
                     "options": {"temperature": temperature, "num_predict": max_tokens},
                 },
-            ) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if not line:
-                        continue
-                    final = json.loads(line)
-                    text = final.get("message", {}).get("content", "")
-                    if text:
-                        first = first or time.perf_counter()
-                        parts.append(text)
+            ) as response,
+        ):
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if not line:
+                    continue
+                final = json.loads(line)
+                text = final.get("message", {}).get("content", "")
+                if text:
+                    first = first or time.perf_counter()
+                    parts.append(text)
         ended, text = time.perf_counter(), "".join(parts)
         return ProviderResponse(
             final.get("prompt_eval_count", 0),

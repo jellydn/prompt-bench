@@ -1,3 +1,5 @@
+# Git hooks via prek (Rust drop-in for pre-commit, reads prek.toml natively).
+# Install: `prek install` (or `pip install prek`). All hooks are local/system.
 [[repos]]
 repo = "https://github.com/pre-commit/pre-commit-hooks"
 rev = "v6.0.0"

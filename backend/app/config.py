@@ -1,12 +1,9 @@
-from functools import lru_cache
-
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     database_url: str = "sqlite:///./promptbench.db"
-    redis_url: str | None = None
     openai_api_key: str = ""
     anthropic_api_key: str = ""
     gemini_api_key: str = ""
@@ -25,9 +22,4 @@ class Settings(BaseSettings):
         return value
 
 
-@lru_cache
-def get_settings() -> Settings:
-    return Settings()
-
-
-settings = get_settings()
+settings = Settings()

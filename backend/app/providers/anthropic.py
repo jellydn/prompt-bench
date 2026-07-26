@@ -21,13 +21,9 @@ class AnthropicProvider(BaseProvider):
         return bool(settings.anthropic_api_key)
 
     def get_models(self):
-        return [
-            ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.names.items()
-        ]
+        return [ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.names.items()]
 
-    async def generate(
-        self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000
-    ):
+    async def generate(self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000):
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
@@ -42,31 +38,29 @@ class AnthropicProvider(BaseProvider):
             "anthropic-version": "2023-06-01",
         }
         started, first, parts, inp, out = time.perf_counter(), None, [], 0, 0
-        async with httpx.AsyncClient(timeout=120) as client:
-            async with client.stream(
+        async with (
+            httpx.AsyncClient(timeout=120) as client,
+            client.stream(
                 "POST",
                 "https://api.anthropic.com/v1/messages",
                 headers=headers,
                 json=payload,
-            ) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if not line.startswith("data: "):
-                        continue
-                    event = json.loads(line[6:])
-                    if event.get("type") == "message_start":
-                        inp = (
-                            event.get("message", {})
-                            .get("usage", {})
-                            .get("input_tokens", 0)
-                        )
-                    if event.get("type") == "content_block_delta":
-                        text = event.get("delta", {}).get("text", "")
-                        if text:
-                            first = first or time.perf_counter()
-                            parts.append(text)
-                    if event.get("type") == "message_delta":
-                        out = event.get("usage", {}).get("output_tokens", out)
+            ) as response,
+        ):
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
+                event = json.loads(line[6:])
+                if event.get("type") == "message_start":
+                    inp = event.get("message", {}).get("usage", {}).get("input_tokens", 0)
+                if event.get("type") == "content_block_delta":
+                    text = event.get("delta", {}).get("text", "")
+                    if text:
+                        first = first or time.perf_counter()
+                        parts.append(text)
+                if event.get("type") == "message_delta":
+                    out = event.get("usage", {}).get("output_tokens", out)
         ended, text = time.perf_counter(), "".join(parts)
         return ProviderResponse(
             inp,

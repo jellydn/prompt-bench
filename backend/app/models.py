@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -7,7 +7,7 @@ from .database import Base
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Benchmark(Base):
@@ -18,9 +18,7 @@ class Benchmark(Base):
     temperature: Mapped[float] = mapped_column(Float, default=0.7)
     max_tokens: Mapped[int] = mapped_column(Integer, default=1000)
     status: Mapped[str] = mapped_column(String(20), default="running")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     results: Mapped[list["BenchmarkResult"]] = relationship(
         back_populates="benchmark",
         cascade="all, delete-orphan",
@@ -44,7 +42,5 @@ class BenchmarkResult(Base):
     response_length: Mapped[int | None] = mapped_column(Integer, nullable=True)
     response_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     benchmark: Mapped[Benchmark] = relationship(back_populates="results")

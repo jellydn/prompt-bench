@@ -1,1 +1,2 @@
 {"type":"config","name":"Fix CONCERNS.md + Modernize Python/Frontend Tooling","metricName":"acceptance_passed","metricUnit":"checks","bestDirection":"higher"}
+{"run":1,"commit":"a4a706c","metric":3,"metrics":{},"status":"keep","description":"Baseline — score 3/20. False positives on API key check, Ollama validation, Anthropic input_tokens checks.","timestamp":1785032254867,"segment":0,"confidence":null,"asi":{"baseline":true,"acceptance_passed":3}}
