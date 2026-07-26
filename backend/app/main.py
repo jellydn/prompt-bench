@@ -15,6 +15,14 @@ from .routers import benchmarks, insights, providers
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # Repair any benchmarks stuck as "running" from a previous crash
+    from .database import SessionLocal  # noqa: PLC0415
+    from .routers.benchmarks import _repair_stuck_benchmarks  # noqa: PLC0415
+    db = SessionLocal()
+    try:
+        _repair_stuck_benchmarks(db)
+    finally:
+        db.close()
     yield
 
 
@@ -25,8 +33,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 app.add_middleware(SlowAPIMiddleware)
 app.include_router(providers.router, prefix="/api")

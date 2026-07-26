@@ -10,7 +10,6 @@ export interface ProviderModel {
 export interface Provider {
   id: string;
   name: string;
-  requires_api_key: boolean;
   configured: boolean;
   base_url: string | null;
   models: ProviderModel[];

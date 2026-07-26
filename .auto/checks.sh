@@ -18,7 +18,7 @@ echo "ruff: ok"
 
 # ── Python tests ────────────────────────────────────────────────────
 echo "--- pytest ---"
-uv run pytest -q --tb=short 2>&1 | tail -20 || {
+uv run --extra dev pytest -q --tb=short 2>&1 | tail -20 || {
     echo "FAIL: pytest failed"
     exit 1
 }

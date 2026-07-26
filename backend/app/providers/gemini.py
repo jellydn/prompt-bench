@@ -45,7 +45,7 @@ class GeminiProvider(BaseProvider):
         async with httpx.AsyncClient(timeout=120) as client, client.stream(
             "POST",
             url,
-            params={"key": get_settings().gemini_api_key},
+            params={"key": get_settings().gemini_api_key, "alt": "sse"},
             json=body,
         ) as response:
             response.raise_for_status()
