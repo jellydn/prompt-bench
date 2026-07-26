@@ -53,7 +53,10 @@ class OpenAICompatibleProvider(BaseProvider):
             async for line in response.aiter_lines():
                 if not line.startswith("data: ") or line == "data: [DONE]":
                     continue
-                data = json.loads(line[6:])
+                try:
+                    data = json.loads(line[6:])
+                except json.JSONDecodeError:
+                    continue
                 content = ((data.get("choices") or [{}])[0].get("delta") or {}).get("content")
                 if content:
                     first = first or time.perf_counter()

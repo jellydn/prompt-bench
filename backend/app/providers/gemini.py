@@ -52,7 +52,10 @@ class GeminiProvider(BaseProvider):
             async for line in response.aiter_lines():
                 if not line.startswith("data: "):
                     continue
-                data = json.loads(line[6:])
+                try:
+                    data = json.loads(line[6:])
+                except json.JSONDecodeError:
+                    continue
                 candidate = (data.get("candidates") or [{}])[0]
                 text_parts = (
                     candidate.get("content", {})

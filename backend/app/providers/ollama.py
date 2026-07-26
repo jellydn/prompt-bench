@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 
 import httpx
@@ -7,6 +8,8 @@ from ..config import settings
 from ..pricing import PRICING
 from .base import BaseProvider, ModelInfo, ProviderResponse
 from .model_lists import OLLAMA_MODELS
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaProvider(BaseProvider):
@@ -18,12 +21,16 @@ class OllamaProvider(BaseProvider):
         return True
 
     def get_models(self):
-        return [ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.names.items()]
-
-    async def generate(self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000):
-        messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + [
-            {"role": "user", "content": prompt}
+        return [
+            ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.names.items()
         ]
+
+    async def generate(
+        self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000
+    ):
+        messages = (
+            [{"role": "system", "content": system_prompt}] if system_prompt else []
+        ) + [{"role": "user", "content": prompt}]
         started, first, parts, final = time.perf_counter(), None, [], {}
         async with (
             httpx.AsyncClient(timeout=120) as client,
@@ -42,11 +49,25 @@ class OllamaProvider(BaseProvider):
             async for line in response.aiter_lines():
                 if not line:
                     continue
-                final = json.loads(line)
+                try:
+                    final = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
                 text = final.get("message", {}).get("content", "")
                 if text:
                     first = first or time.perf_counter()
                     parts.append(text)
+
+        # Validate response shape
+        if "eval_count" not in final:
+            logger.warning(
+                "Ollama missing eval_count (model=%s). Output tokens=0.", model
+            )
+        if "prompt_eval_count" not in final:
+            logger.warning(
+                "Ollama missing prompt_eval_count (model=%s). Input tokens=0.", model
+            )
+
         ended, text = time.perf_counter(), "".join(parts)
         return ProviderResponse(
             final.get("prompt_eval_count", 0),

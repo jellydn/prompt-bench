@@ -51,7 +51,10 @@ class AnthropicProvider(BaseProvider):
             async for line in response.aiter_lines():
                 if not line.startswith("data: "):
                     continue
-                event = json.loads(line[6:])
+                try:
+                    event = json.loads(line[6:])
+                except json.JSONDecodeError:
+                    continue
                 if event.get("type") == "message_start":
                     inp = event.get("message", {}).get("usage", {}).get("input_tokens", 0)
                 if event.get("type") == "content_block_delta":
