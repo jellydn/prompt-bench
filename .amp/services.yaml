@@ -1,0 +1,16 @@
+services:
+  backend:
+    command: cd /home/user/workspace/repo/backend && uvicorn app.main:app --host 0.0.0.0 --port 8000
+    port: 8000
+    portal: true
+    healthCheck:
+      path: /
+      interval: 5s
+
+  frontend:
+    command: cd /home/user/workspace/repo/frontend && npm run dev
+    port: 5173
+    portal: true
+    healthCheck:
+      path: /
+      interval: 5s
