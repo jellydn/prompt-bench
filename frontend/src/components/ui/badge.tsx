@@ -1,1 +1,25 @@
-import {cva,type VariantProps} from "class-variance-authority"; import {cn} from "@/lib/utils"; import type {HTMLAttributes} from "react"; const variants=cva("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",{variants:{variant:{default:"bg-primary text-primary-foreground",secondary:"bg-secondary text-secondary-foreground",destructive:"bg-destructive text-destructive-foreground",success:"bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"}},defaultVariants:{variant:"default"}}); export function Badge({className,variant,...p}:HTMLAttributes<HTMLDivElement>&VariantProps<typeof variants>){return <div className={cn(variants({variant}),className)} {...p}/>}
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/utils";
+import type { HTMLAttributes } from "react";
+const variants = cva(
+  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground",
+        secondary: "bg-secondary text-secondary-foreground",
+        destructive: "bg-destructive text-destructive-foreground",
+        success:
+          "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+      },
+    },
+    defaultVariants: { variant: "default" },
+  },
+);
+export function Badge({
+  className,
+  variant,
+  ...p
+}: HTMLAttributes<HTMLDivElement> & VariantProps<typeof variants>) {
+  return <div className={cn(variants({ variant }), className)} {...p} />;
+}
