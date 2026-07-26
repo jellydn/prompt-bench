@@ -160,43 +160,37 @@ These are the fixed acceptance criteria. Each passing check = 1 point toward `ac
 
 ## What's Been Tried
 
-_Update this as experiments accumulate._
+### Baseline
+- acceptance_passed=3 (3 false positives from loose checks)
 
-### Iteration 2 — Python Toolchain Modernization
-- Created `pyproject.toml` with ruff config, `uv.lock`
-- Removed `aiocache` and `redis_url` (dead deps)
-- Removed redis from docker-compose.yml
-- Updated backend Dockerfile to use `uv`
-- Added comment to `prek.toml` about prek (Rust pre-commit)
-- Fixed all ruff violations (SIM117, UP017, etc.)
-- Ignored B008 (false positive for FastAPI Depends)
-- **Score: 13/20** (+5: response_chars, empty results fix, max_length, Gemini streaming, model dedup)
+### Iterations 1-7 — Main CONCERNS.md Fixes
+- Python toolchain: uv + pyproject.toml + ruff (0 violations)
+- Dead deps removed: aiocache, redis_url, redis service
+- Gemini streaming: client.stream() + alt=sse
+- Empty results crash: early return in frontend
+- Model lists: shared model_lists.py, OpenRouter refresh from API at startup
+- API keys: get_settings() at request time (no import-time eval)
+- response_length → response_chars with backward-compat column mapping
+- Input validation: max_length on prompt & models fields
+- Settings: removed lru_cache
+- Ollama: response shape warnings
+- Claude: robust input_tokens extraction
+- Rate limiting: slowapi (60/min, 10/min POST)
+- Concurrency cap: asyncio.Semaphore(5), max_length=10
+- Insights: pagination (limit param) + SQL-level AVG/GROUP BY
+- Status recovery: repair on startup + POST
+- Error boundaries: React ErrorBoundary
+- Provider validation: try/except JSON in all providers
+- CORS: restricted methods/headers
+- Providers API: removed requires_api_key
+- Docker secrets: env var substitution + .env.example
+- Pooling: NullPool for SQLite, QueuePool for PostgreSQL with pre_ping
 
-### Iteration 4 — Rate Limiting, Concurrency, Pagination, Status Recovery
-- Added slowapi rate limiting (60/min default, 10/min on benchmark create)
-- Added asyncio.Semaphore(5) for concurrent provider API calls
-- Added `limit` parameter to insights endpoint (default 50, max 500)
-- Added `_repair_stuck_benchmarks()` for stuck 'running' benchmarks
-- **Score: 18/20** (+4: rate limiting, pagination, concurrency cap, status recovery)
+### Iterations 8-13 — Quality Improvements
+- React 19 + Node 24 + engines.node
+- psycopg2-binary → psycopg[binary] v3
+- Frontend code splitting: main bundle 662KB → 256KB
+- OpenRouter free model list: API fetch at startup with 1h TTL + fallback
+- Ruff as dev dependency + justfile uses uv run
+- Checks.sh gates: ruff → 27 pytest tests → frontend build
 
-### Iteration 6 — Config Fixes, DB Migration, Proper Tests
-- Fixed SlowAPI runtime: added `Request` parameter to `create_benchmark` endpoint
-- Restored `get_settings()` (without `lru_cache`); providers now call at request time
-- Added column mapping: `response_chars` → SQL column `response_length` (backward compatible)
-- Created `backend/tests/` with conftest (tempfile SQLite), 21 tests
-  - Pricing edge cases, provider JSON parsing, API endpoints, stuck recovery, column mapping
-- Created `.auto/checks.sh` (ruff + pytest + frontend build)
-- Added dev dependencies (pytest, pytest-asyncio)
-- **Score: 20/20** ✓ — All acceptance checks passing + checks.sh gates green
-
-## Final Summary
-
-| Category | Before | After |
-|----------|--------|-------|
-| **Tooling** | pip + requirements.txt | uv + pyproject.toml + ruff |
-| **Python lint** | 0% configured | ruff with 0 violations |
-| **Dead deps** | aiocache, redis_url | both removed |
-| **Bugs fixed** | 5 known bugs | all fixed: Gemini streaming, empty reduce, dedup, input limits, config |
-| **Tests** | 0 | 21 pytest tests |
-| **CI gates** | none | ruff + pytest + frontend build |
-| **Acceptance** | 3/20 (false positives) | 20/20 (real fixes) |
