@@ -4,7 +4,7 @@ dev:
 	docker compose up --build
 
 backend-dev:
-	cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && uvicorn app.main:app --reload --port 8000
+	cd backend && uv sync && uv run uvicorn app.main:app --reload --port 8000
 
 frontend-dev:
 	cd frontend && npm install && npm run dev
@@ -12,7 +12,7 @@ frontend-dev:
 lint: lint-backend lint-frontend
 
 lint-backend:
-	cd backend && ruff check .
+	cd backend && uv run ruff check .
 
 lint-frontend:
 	cd frontend && npx eslint .
@@ -20,7 +20,7 @@ lint-frontend:
 format: format-backend format-frontend
 
 format-backend:
-	cd backend && ruff format .
+	cd backend && uv run ruff format .
 
 format-frontend:
 	cd frontend && npx prettier --write .
@@ -28,7 +28,7 @@ format-frontend:
 format-check: format-check-backend format-check-frontend
 
 format-check-backend:
-	cd backend && ruff format --check .
+	cd backend && uv run ruff format --check .
 
 format-check-frontend:
 	cd frontend && npx prettier --check .
