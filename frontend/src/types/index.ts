@@ -24,7 +24,7 @@ export interface BenchmarkResult {
   ttft_ms: number | null;
   total_latency_ms: number | null;
   cost: number | null;
-  response_length: number | null;
+  response_chars: number | null;
   response_text: string | null;
   error: string | null;
 }

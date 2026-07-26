@@ -16,7 +16,7 @@ class ProviderResponse:
     ttft_ms: int
     total_latency_ms: int
     response_text: str
-    response_length: int
+    response_chars: int
     cost: float
     error: str | None = None
 

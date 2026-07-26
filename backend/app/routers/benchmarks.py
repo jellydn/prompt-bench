@@ -56,7 +56,7 @@ async def create_benchmark(request: BenchmarkCreate, db: Session = Depends(get_d
                 "ttft_ms": None,
                 "total_latency_ms": 0,
                 "cost": None,
-                "response_length": 0,
+                "response_chars": 0,
                 "response_text": None,
             }
         )

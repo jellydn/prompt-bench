@@ -162,8 +162,13 @@ These are the fixed acceptance criteria. Each passing check = 1 point toward `ac
 
 _Update this as experiments accumulate._
 
-### Iteration 1 — Baseline
-
-- Committed current state as baseline
-- acceptance_passed=0 (no pyproject.toml, no modern tooling, all bugs unfixed)
-- ruff_errors=0, ruff_violations=0 (already clean for ruff)
+### Iteration 2 — Python Toolchain Modernization
+- Created `pyproject.toml` with ruff config, `uv.lock`
+- Removed `aiocache` and `redis_url` (dead deps)
+- Removed redis from docker-compose.yml
+- Updated backend Dockerfile to use `uv`
+- Added comment to `prek.toml` about prek (Rust pre-commit)
+- Fixed all ruff violations (SIM117, UP017, etc.)
+- Ignored B008 (false positive for FastAPI Depends)
+- **Score: 8/20** (+5: pyproject, uv.lock, aiocache, redis_url, lru_cache, prek)
+- ruff_violations=0

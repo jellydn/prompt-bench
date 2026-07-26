@@ -6,11 +6,12 @@ import httpx
 from ..config import settings
 from ..pricing import PRICING
 from .base import BaseProvider, ModelInfo, ProviderResponse
+from .model_lists import OLLAMA_MODELS
 
 
 class OllamaProvider(BaseProvider):
     provider_id, provider_name = "ollama", "Ollama"
-    names = {m: m for m in ["llama3.1", "mistral", "qwen2.5", "phi3"]}
+    names = {m: m for m in OLLAMA_MODELS}
 
     @property
     def is_configured(self):

@@ -49,6 +49,45 @@ export default function BenchmarkResults({
     );
   const b = q.data!;
   const good = b.results.filter((r) => !r.error);
+  if (good.length === 0) {
+    return (
+      <div className="space-y-6">
+        <Button variant="ghost" onClick={onBack}>
+          <ArrowLeft />
+          Back to history
+        </Button>
+        <Card>
+          <CardHeader>
+            <CardTitle>Benchmark #{b.id}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="whitespace-pre-wrap text-lg">{b.prompt}</p>
+            {b.system_prompt && (
+              <p className="mt-3 text-sm text-muted-foreground">
+                System: {b.system_prompt}
+              </p>
+            )}
+            <div className="mt-4 flex gap-4 text-sm text-muted-foreground">
+              <span>Temperature {b.temperature}</span>
+              <span>Max tokens {tokens(b.max_tokens)}</span>
+              <Badge variant={b.status === "completed" ? "success" : "secondary"}>
+                {b.status}
+              </Badge>
+            </div>
+            <p className="mt-4 text-destructive">All models returned errors.</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Results</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">No successful results to display.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   const fastest = good.reduce(
     (a, r) =>
       r.total_latency_ms != null &&
@@ -110,7 +149,7 @@ export default function BenchmarkResults({
                   "TTFT",
                   "Total latency",
                   "Cost",
-                  "Length",
+                  "Chars",
                   "Status",
                 ].map((x) => (
                   <TableHead key={x}>{x}</TableHead>
@@ -137,7 +176,7 @@ export default function BenchmarkResults({
                   <TableCell>{latency(r.ttft_ms)}</TableCell>
                   <TableCell>{latency(r.total_latency_ms)}</TableCell>
                   <TableCell>{money(r.cost)}</TableCell>
-                  <TableCell>{tokens(r.response_length)}</TableCell>
+                  <TableCell>{tokens(r.response_chars)}</TableCell>
                   <TableCell>
                     <Badge variant={r.error ? "destructive" : "success"}>
                       {r.error ? "Error" : "Success"}
