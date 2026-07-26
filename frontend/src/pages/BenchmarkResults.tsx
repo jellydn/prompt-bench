@@ -47,7 +47,8 @@ export default function BenchmarkResults({
         </p>
       </div>
     );
-  const b = q.data!;
+  if (!q.data) return null;
+  const b = q.data;
   const good = b.results.filter((r) => !r.error);
   if (good.length === 0) {
     return (

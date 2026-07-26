@@ -13,7 +13,8 @@ export default function Insights({ onOpen }: { onOpen: (id: number) => void }) {
         Could not load insights: {q.error.message}
       </p>
     );
-  const x = q.data!;
+  if (!q.data) return null;
+  const x = q.data;
   if (Object.values(x).every((v) => v === null))
     return (
       <div className="py-24 text-center">
