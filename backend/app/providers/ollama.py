@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class OllamaProvider(BaseProvider):
     provider_id, provider_name = "ollama", "Ollama"
-    names = {m: m for m in OLLAMA_MODELS}
+    model_names = {m: m for m in OLLAMA_MODELS}
 
     @property
     def is_configured(self):
@@ -22,7 +22,7 @@ class OllamaProvider(BaseProvider):
 
     def get_models(self):
         return [
-            ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.names.items()
+            ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.model_names.items()
         ]
 
     async def generate(

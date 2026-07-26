@@ -10,7 +10,7 @@ from .base import BaseProvider, ModelInfo, ProviderResponse
 
 class AnthropicProvider(BaseProvider):
     provider_id, provider_name = "anthropic", "Anthropic"
-    names = {
+    model_names = {
         "claude-3-5-sonnet-20241022": "Claude 3.5 Sonnet",
         "claude-3-5-haiku-20241022": "Claude 3.5 Haiku",
         "claude-3-opus-20240229": "Claude 3 Opus",
@@ -21,7 +21,7 @@ class AnthropicProvider(BaseProvider):
         return bool(get_settings().anthropic_api_key)
 
     def get_models(self):
-        return [ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.names.items()]
+        return [ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.model_names.items()]
 
     async def generate(self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000):
         payload = {

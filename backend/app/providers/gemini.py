@@ -10,7 +10,7 @@ from .base import BaseProvider, ModelInfo, ProviderResponse
 
 class GeminiProvider(BaseProvider):
     provider_id, provider_name = "gemini", "Google Gemini"
-    names = {
+    model_names = {
         "gemini-1.5-pro": "Gemini 1.5 Pro",
         "gemini-1.5-flash": "Gemini 1.5 Flash",
         "gemini-2.0-flash-exp": "Gemini 2.0 Flash Experimental",
@@ -22,7 +22,7 @@ class GeminiProvider(BaseProvider):
 
     def get_models(self):
         return [
-            ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.names.items()
+            ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.model_names.items()
         ]
 
     async def generate(
