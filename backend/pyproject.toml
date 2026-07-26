@@ -21,12 +21,14 @@ dev = [
     "pytest-asyncio>=0.25.0",
     "httpx>=0.28.0",
     "ruff>=0.8.0",
+    "alembic>=1.14.0",
 ]
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
 indent-width = 4
+exclude = ["alembic/versions/*.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "C4", "PL"]
