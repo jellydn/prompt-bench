@@ -103,6 +103,10 @@ async def refresh_openrouter_free_models() -> None:
     OPENROUTER_FREE_MODELS.clear()
     OPENROUTER_FREE_MODELS.extend(free_models)
     _last_refresh = now
+    # Invalidate the provider cache so refreshed models appear immediately
+    from . import invalidate_provider_cache  # noqa: PLC0415
+
+    invalidate_provider_cache()
     logger.info(
         "OpenRouter free models refreshed: %d → %d models",
         old_count,
