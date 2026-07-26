@@ -23,6 +23,8 @@ docker-data/
 
 # Artifacts
 .amp/in/artifacts/*
+.amp/live-sync.pid
 !.amp/in/artifacts/.gitkeep
 /frontend/tsconfig.node.tsbuildinfo
+/frontend/tsconfig.tsbuildinfo
 /backend/promptbench.db
