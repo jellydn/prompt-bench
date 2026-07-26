@@ -1,4 +1,4 @@
-from ..config import settings
+from ..config import get_settings
 from .common import OpenAICompatibleProvider
 from .model_lists import OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS
 
@@ -15,4 +15,4 @@ class OpenRouterProvider(OpenAICompatibleProvider):
 
     @property
     def api_key(self):
-        return settings.openrouter_api_key
+        return get_settings().openrouter_api_key

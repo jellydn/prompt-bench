@@ -39,7 +39,7 @@ class BenchmarkResult(Base):
     ttft_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cost: Mapped[float | None] = mapped_column(Float, nullable=True)
-    response_chars: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_chars: Mapped[int | None] = mapped_column("response_length", Integer, nullable=True)
     response_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

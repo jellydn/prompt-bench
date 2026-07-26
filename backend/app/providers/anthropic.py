@@ -3,7 +3,7 @@ import time
 
 import httpx
 
-from ..config import settings
+from ..config import get_settings
 from ..pricing import PRICING, calculate_cost
 from .base import BaseProvider, ModelInfo, ProviderResponse
 
@@ -18,7 +18,7 @@ class AnthropicProvider(BaseProvider):
 
     @property
     def is_configured(self):
-        return bool(settings.anthropic_api_key)
+        return bool(get_settings().anthropic_api_key)
 
     def get_models(self):
         return [ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.names.items()]
@@ -34,7 +34,7 @@ class AnthropicProvider(BaseProvider):
         if system_prompt:
             payload["system"] = system_prompt
         headers = {
-            "x-api-key": settings.anthropic_api_key,
+            "x-api-key": get_settings().anthropic_api_key,
             "anthropic-version": "2023-06-01",
         }
         started, first, parts, inp, out = time.perf_counter(), None, [], 0, 0

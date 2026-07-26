@@ -1,4 +1,4 @@
-from ..config import settings
+from ..config import get_settings
 from .common import OpenAICompatibleProvider
 
 
@@ -14,4 +14,4 @@ class OpenAIProvider(OpenAICompatibleProvider):
 
     @property
     def api_key(self):
-        return settings.openai_api_key
+        return get_settings().openai_api_key

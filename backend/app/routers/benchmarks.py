@@ -1,7 +1,7 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session, selectinload
 
@@ -17,7 +17,7 @@ router = APIRouter()
 _semaphore = asyncio.Semaphore(5)
 
 
-async def run_one(item, request):
+async def run_one(item, benchmark_req):
     provider = get_provider(item.provider)
     if not provider:
         return item, None, f"Unknown provider: {item.provider}"
@@ -26,11 +26,11 @@ async def run_one(item, request):
     async with _semaphore:
         try:
             result = await provider.generate(
-                request.prompt,
+                benchmark_req.prompt,
                 item.model,
-                request.system_prompt,
-                request.temperature,
-                request.max_tokens,
+                benchmark_req.system_prompt,
+                benchmark_req.temperature,
+                benchmark_req.max_tokens,
             )
             return item, result, None
         except Exception as exc:
@@ -39,32 +39,40 @@ async def run_one(item, request):
 
 def _repair_stuck_benchmarks(db: Session) -> None:
     """Mark benchmarks stuck as 'running' for over 5 minutes as 'failed'."""
-    cutoff = datetime.now(UTC) - timedelta(minutes=5)
-    db.execute(
-        update(Benchmark)
-        .where(Benchmark.status == "running")
-        .where(Benchmark.created_at < cutoff)
-        .values(status="failed")
-    )
-    db.commit()
+    try:
+        cutoff = datetime.now(UTC) - timedelta(minutes=5)
+        db.execute(
+            update(Benchmark)
+            .where(Benchmark.status == "running")
+            .where(Benchmark.created_at < cutoff)
+            .values(status="failed")
+        )
+        db.commit()
+    except Exception:
+        # Tables may not exist yet (e.g., during startup before migration)
+        db.rollback()
 
 
 @router.post("/benchmarks", response_model=BenchmarkOut)
 @limiter.limit("10/minute")
-async def create_benchmark(request: BenchmarkCreate, db: Session = Depends(get_db)):
+async def create_benchmark(
+    request: Request,
+    payload: BenchmarkCreate,
+    db: Session = Depends(get_db),
+):
     _repair_stuck_benchmarks(db)
     benchmark = Benchmark(
-        prompt=request.prompt,
-        system_prompt=request.system_prompt,
-        temperature=request.temperature,
-        max_tokens=request.max_tokens,
+        prompt=payload.prompt,
+        system_prompt=payload.system_prompt,
+        temperature=payload.temperature,
+        max_tokens=payload.max_tokens,
         status="running",
     )
     db.add(benchmark)
     db.commit()
     db.refresh(benchmark)
     outcomes = await asyncio.gather(
-        *(run_one(item, request) for item in request.models)
+        *(run_one(item, payload) for item in payload.models)
     )
     for item, result, error in outcomes:
         values = (

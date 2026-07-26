@@ -22,4 +22,10 @@ class Settings(BaseSettings):
         return value
 
 
-settings = Settings()
+def get_settings() -> Settings:
+    return Settings()
+
+
+# Default instance for startup-time access (database.py, etc).
+# Provider API keys are read fresh via get_settings() at call time.
+settings = get_settings()

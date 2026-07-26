@@ -3,7 +3,7 @@ import time
 
 import httpx
 
-from ..config import settings
+from ..config import get_settings
 from ..pricing import PRICING, calculate_cost
 from .base import BaseProvider, ModelInfo, ProviderResponse
 
@@ -18,7 +18,7 @@ class GeminiProvider(BaseProvider):
 
     @property
     def is_configured(self):
-        return bool(settings.gemini_api_key)
+        return bool(get_settings().gemini_api_key)
 
     def get_models(self):
         return [
@@ -45,7 +45,7 @@ class GeminiProvider(BaseProvider):
         async with httpx.AsyncClient(timeout=120) as client, client.stream(
             "POST",
             url,
-            params={"key": settings.gemini_api_key},
+            params={"key": get_settings().gemini_api_key},
             json=body,
         ) as response:
             response.raise_for_status()
