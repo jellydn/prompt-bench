@@ -10,7 +10,6 @@ export interface ProviderModel {
 export interface Provider {
   id: string;
   name: string;
-  requires_api_key: boolean;
   configured: boolean;
   base_url: string | null;
   models: ProviderModel[];
@@ -24,7 +23,7 @@ export interface BenchmarkResult {
   ttft_ms: number | null;
   total_latency_ms: number | null;
   cost: number | null;
-  response_length: number | null;
+  response_chars: number | null;
   response_text: string | null;
   error: string | null;
 }

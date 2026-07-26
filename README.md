@@ -16,10 +16,10 @@ OpenAI · Anthropic · Google Gemini · OpenRouter · Ollama · vLLM
 
 ## Tech Stack
 
-| Layer    | Technologies                                                   |
-| -------- | -------------------------------------------------------------- |
-| Frontend | React, Vite, Tailwind CSS, shadcn/ui, TanStack Query, Recharts |
-| Backend  | FastAPI, PostgreSQL, SQLAlchemy, Redis (optional)              |
+| Layer    | Technologies                                                      |
+| -------- | ----------------------------------------------------------------- |
+| Frontend | React 19, Vite, Tailwind CSS, shadcn/ui, TanStack Query, Recharts |
+| Backend  | FastAPI, PostgreSQL (or SQLite), SQLAlchemy, psycopg v3           |
 
 ## Quick Start
 
@@ -31,18 +31,24 @@ docker compose up --build
 
 Frontend: http://localhost:5173 · Backend API: http://localhost:8000/docs
 
-### Manual
+### Manual (uv + npm)
 
 #### Backend
 
+Requires [uv](https://docs.astral.sh/uv/) and Python 3.12+.
+
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+cp .env.example .env       # add your API keys
+uv sync                    # install dependencies
+uv run uvicorn app.main:app --reload --port 8000
 ```
 
+All Python tooling goes through `uv run` (ruff, pytest, alembic, etc.).
+
 #### Frontend
+
+Requires Node 22+.
 
 ```bash
 cd frontend
@@ -50,20 +56,27 @@ npm install
 npm run dev
 ```
 
+### Common tasks
+
+```bash
+# Install just if needed: brew install just
+just lint       # ruff + eslint
+just format     # ruff format + prettier
+just clean      # remove all build artifacts
+cd backend && uv run --extra dev pytest  # run tests (29 total)
+```
+
 ### Environment Variables
 
 Copy `backend/.env.example` to `backend/.env` and add your API keys:
 
-```
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-GEMINI_API_KEY=...
-OPENROUTER_API_KEY=sk-or-...
+```bash
+cd backend
+cp .env.example .env
+# Then edit .env with your API keys
 ```
 
-Ollama and vLLM run locally and need no API key — just set the base URL.
-
-> **Never commit `backend/.env`.** It is gitignored. Run `chmod 600 backend/.env` for extra safety.
+The backend looks for `.env` in the `backend/` directory automatically.
 
 ## Testing with OpenRouter Free Models
 

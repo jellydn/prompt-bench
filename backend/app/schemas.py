@@ -9,11 +9,11 @@ class ModelSelection(BaseModel):
 
 
 class BenchmarkCreate(BaseModel):
-    prompt: str = Field(min_length=1)
+    prompt: str = Field(min_length=1, max_length=100_000)
     system_prompt: str = ""
     temperature: float = Field(0.7, ge=0, le=2)
     max_tokens: int = Field(1000, gt=0)
-    models: list[ModelSelection] = Field(min_length=1)
+    models: list[ModelSelection] = Field(min_length=1, max_length=10)
 
 
 class ResultOut(BaseModel):
@@ -26,7 +26,7 @@ class ResultOut(BaseModel):
     ttft_ms: int | None
     total_latency_ms: int | None
     cost: float | None
-    response_length: int | None
+    response_chars: int | None
     response_text: str | None
     error: str | None
 

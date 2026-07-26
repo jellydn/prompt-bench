@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import {
   Activity,
   History as HistoryIcon,
@@ -8,12 +8,13 @@ import {
   Sun,
   Menu,
 } from "lucide-react";
-import BenchmarkRun from "@/pages/BenchmarkRun";
-import BenchmarkResults from "@/pages/BenchmarkResults";
-import History from "@/pages/History";
-import Insights from "@/pages/Insights";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+const BenchmarkRun = lazy(() => import("@/pages/BenchmarkRun"));
+const BenchmarkResults = lazy(() => import("@/pages/BenchmarkResults"));
+const History = lazy(() => import("@/pages/History"));
+const Insights = lazy(() => import("@/pages/Insights"));
 type Page = "run" | "results" | "history" | "insights";
 export default function App() {
   const [page, setPage] = useState<Page>("run");
@@ -98,12 +99,20 @@ export default function App() {
         />
       )}
       <main className="px-4 pb-10 pt-24 md:ml-64 md:p-8">
-        {page === "run" && <BenchmarkRun onComplete={openResult} />}{" "}
-        {page === "history" && <History onOpen={openResult} />}{" "}
-        {page === "insights" && <Insights onOpen={openResult} />}{" "}
-        {page === "results" && id != null && (
-          <BenchmarkResults id={id} onBack={() => setPage("history")} />
-        )}
+        <Suspense
+          fallback={
+            <div className="flex h-64 items-center justify-center text-muted-foreground">
+              Loading…
+            </div>
+          }
+        >
+          {page === "run" && <BenchmarkRun onComplete={openResult} />}{" "}
+          {page === "history" && <History onOpen={openResult} />}{" "}
+          {page === "insights" && <Insights onOpen={openResult} />}{" "}
+          {page === "results" && id != null && (
+            <BenchmarkResults id={id} onBack={() => setPage("history")} />
+          )}
+        </Suspense>
       </main>
     </div>
   );
