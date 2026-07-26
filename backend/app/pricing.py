@@ -30,17 +30,11 @@ PRICING: dict[str, dict[str, dict[str, float]]] = {
         "google/gemini-pro-1.5": {"input": 0.00125, "output": 0.005},
         "meta-llama/llama-3.1-70b-instruct": {"input": 0.00059, "output": 0.00079},
     },
-    "ollama": {
-        m: {"input": 0.0, "output": 0.0} for m in OLLAMA_MODELS
-    },
-    "vllm": {
-        m: {"input": 0.0, "output": 0.0} for m in VLLM_MODELS
-    },
+    "ollama": {m: {"input": 0.0, "output": 0.0} for m in OLLAMA_MODELS},
+    "vllm": {m: {"input": 0.0, "output": 0.0} for m in VLLM_MODELS},
 }
 
 
-def calculate_cost(
-    provider: str, model: str, input_tokens: int, output_tokens: int
-) -> float:
+def calculate_cost(provider: str, model: str, input_tokens: int, output_tokens: int) -> float:
     price = PRICING.get(provider, {}).get(model, {"input": 0.0, "output": 0.0})
     return input_tokens / 1000 * price["input"] + output_tokens / 1000 * price["output"]

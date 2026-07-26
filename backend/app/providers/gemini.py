@@ -21,13 +21,9 @@ class GeminiProvider(BaseProvider):
         return bool(get_settings().gemini_api_key)
 
     def get_models(self):
-        return [
-            ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.model_names.items()
-        ]
+        return [ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.model_names.items()]
 
-    async def generate(
-        self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000
-    ):
+    async def generate(self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000):
         body = {
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {
@@ -37,17 +33,22 @@ class GeminiProvider(BaseProvider):
         }
         if system_prompt:
             body["systemInstruction"] = {"parts": [{"text": system_prompt}]}
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent"
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent"
+        )
         started = time.perf_counter()
         first = None
         parts = []
         inp = out = 0
-        async with httpx.AsyncClient(timeout=120) as client, client.stream(
-            "POST",
-            url,
-            params={"key": get_settings().gemini_api_key, "alt": "sse"},
-            json=body,
-        ) as response:
+        async with (
+            httpx.AsyncClient(timeout=120) as client,
+            client.stream(
+                "POST",
+                url,
+                params={"key": get_settings().gemini_api_key, "alt": "sse"},
+                json=body,
+            ) as response,
+        ):
             response.raise_for_status()
             async for line in response.aiter_lines():
                 if not line.startswith("data: "):
@@ -57,10 +58,7 @@ class GeminiProvider(BaseProvider):
                 except json.JSONDecodeError:
                     continue
                 candidate = (data.get("candidates") or [{}])[0]
-                text_parts = (
-                    candidate.get("content", {})
-                    .get("parts", [{}])
-                )
+                text_parts = candidate.get("content", {}).get("parts", [{}])
                 for p in text_parts:
                     text = p.get("text", "")
                     if text:

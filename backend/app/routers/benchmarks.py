@@ -81,9 +81,7 @@ async def create_benchmark(
         len(payload.models),
         len(payload.prompt),
     )
-    outcomes = await asyncio.gather(
-        *(run_one(item, payload) for item in payload.models)
-    )
+    outcomes = await asyncio.gather(*(run_one(item, payload) for item in payload.models))
     for item, result, error in outcomes:
         values = (
             vars(result).copy()
@@ -108,9 +106,7 @@ async def create_benchmark(
                 **values,
             )
         )
-    benchmark.status = (
-        "failed" if all(error for _, _, error in outcomes) else "completed"
-    )
+    benchmark.status = "failed" if all(error for _, _, error in outcomes) else "completed"
     db.commit()
     logger.info(
         "Benchmark #%d %s — %d/%d succeeded",
@@ -138,9 +134,7 @@ def history(limit: int = 20, offset: int = 0, db: Session = Depends(get_db)):
     output = []
     for b in items:
         latencies = [
-            r.total_latency_ms
-            for r in b.results
-            if r.total_latency_ms is not None and not r.error
+            r.total_latency_ms for r in b.results if r.total_latency_ms is not None and not r.error
         ]
         output.append(
             BenchmarkSummary(
@@ -149,9 +143,7 @@ def history(limit: int = 20, offset: int = 0, db: Session = Depends(get_db)):
                 created_at=b.created_at,
                 model_count=len(b.results),
                 total_cost=sum(r.cost or 0 for r in b.results),
-                total_tokens=sum(
-                    (r.input_tokens or 0) + (r.output_tokens or 0) for r in b.results
-                ),
+                total_tokens=sum((r.input_tokens or 0) + (r.output_tokens or 0) for r in b.results),
                 avg_latency_ms=sum(latencies) / len(latencies) if latencies else 0,
                 status=b.status,
             )

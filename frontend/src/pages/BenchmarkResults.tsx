@@ -71,7 +71,9 @@ export default function BenchmarkResults({
             <div className="mt-4 flex gap-4 text-sm text-muted-foreground">
               <span>Temperature {b.temperature}</span>
               <span>Max tokens {tokens(b.max_tokens)}</span>
-              <Badge variant={b.status === "completed" ? "success" : "secondary"}>
+              <Badge
+                variant={b.status === "completed" ? "success" : "secondary"}
+              >
                 {b.status}
               </Badge>
             </div>
@@ -83,7 +85,9 @@ export default function BenchmarkResults({
             <CardTitle>Results</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground">No successful results to display.</p>
+            <p className="text-muted-foreground">
+              No successful results to display.
+            </p>
           </CardContent>
         </Card>
       </div>

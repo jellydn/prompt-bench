@@ -21,16 +21,12 @@ class OllamaProvider(BaseProvider):
         return True
 
     def get_models(self):
-        return [
-            ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.model_names.items()
-        ]
+        return [ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.model_names.items()]
 
-    async def generate(
-        self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000
-    ):
-        messages = (
-            [{"role": "system", "content": system_prompt}] if system_prompt else []
-        ) + [{"role": "user", "content": prompt}]
+    async def generate(self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000):
+        messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + [
+            {"role": "user", "content": prompt}
+        ]
         started, first, parts, final = time.perf_counter(), None, [], {}
         async with (
             httpx.AsyncClient(timeout=120) as client,
@@ -60,13 +56,9 @@ class OllamaProvider(BaseProvider):
 
         # Validate response shape
         if "eval_count" not in final:
-            logger.warning(
-                "Ollama missing eval_count (model=%s). Output tokens=0.", model
-            )
+            logger.warning("Ollama missing eval_count (model=%s). Output tokens=0.", model)
         if "prompt_eval_count" not in final:
-            logger.warning(
-                "Ollama missing prompt_eval_count (model=%s). Input tokens=0.", model
-            )
+            logger.warning("Ollama missing prompt_eval_count (model=%s). Input tokens=0.", model)
 
         ended, text = time.perf_counter(), "".join(parts)
         return ProviderResponse(

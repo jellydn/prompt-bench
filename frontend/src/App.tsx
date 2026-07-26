@@ -99,11 +99,13 @@ export default function App() {
         />
       )}
       <main className="px-4 pb-10 pt-24 md:ml-64 md:p-8">
-        <Suspense fallback={
-          <div className="flex h-64 items-center justify-center text-muted-foreground">
-            Loading…
-          </div>
-        }>
+        <Suspense
+          fallback={
+            <div className="flex h-64 items-center justify-center text-muted-foreground">
+              Loading…
+            </div>
+          }
+        >
           {page === "run" && <BenchmarkRun onComplete={openResult} />}{" "}
           {page === "history" && <History onOpen={openResult} />}{" "}
           {page === "insights" && <Insights onOpen={openResult} />}{" "}

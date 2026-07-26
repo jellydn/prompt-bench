@@ -16,10 +16,10 @@ OpenAI · Anthropic · Google Gemini · OpenRouter · Ollama · vLLM
 
 ## Tech Stack
 
-| Layer    | Technologies                                                   |
-| -------- | -------------------------------------------------------------- |
+| Layer    | Technologies                                                      |
+| -------- | ----------------------------------------------------------------- |
 | Frontend | React 19, Vite, Tailwind CSS, shadcn/ui, TanStack Query, Recharts |
-| Backend  | FastAPI, PostgreSQL (or SQLite), SQLAlchemy, psycopg v3        |
+| Backend  | FastAPI, PostgreSQL (or SQLite), SQLAlchemy, psycopg v3           |
 
 ## Quick Start
 
