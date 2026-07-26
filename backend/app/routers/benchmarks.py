@@ -92,9 +92,9 @@ async def create_benchmark(
                 "input_tokens": None,
                 "output_tokens": None,
                 "ttft_ms": None,
-                "total_latency_ms": 0,
+                "total_latency_ms": None,
                 "cost": None,
-                "response_chars": 0,
+                "response_chars": None,
                 "response_text": None,
             }
         )
