@@ -26,7 +26,14 @@ class BaseProvider(ABC):
     provider_name: str
 
     @abstractmethod
-    async def generate(self, prompt: str, model: str, system_prompt: str = "", temperature: float = 0.7, max_tokens: int = 1000) -> ProviderResponse: ...
+    async def generate(
+        self,
+        prompt: str,
+        model: str,
+        system_prompt: str = "",
+        temperature: float = 0.7,
+        max_tokens: int = 1000,
+    ) -> ProviderResponse: ...
 
     @abstractmethod
     def get_models(self) -> list[ModelInfo]: ...

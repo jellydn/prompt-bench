@@ -18,16 +18,22 @@ class Benchmark(Base):
     temperature: Mapped[float] = mapped_column(Float, default=0.7)
     max_tokens: Mapped[int] = mapped_column(Integer, default=1000)
     status: Mapped[str] = mapped_column(String(20), default="running")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
     results: Mapped[list["BenchmarkResult"]] = relationship(
-        back_populates="benchmark", cascade="all, delete-orphan", order_by="BenchmarkResult.id"
+        back_populates="benchmark",
+        cascade="all, delete-orphan",
+        order_by="BenchmarkResult.id",
     )
 
 
 class BenchmarkResult(Base):
     __tablename__ = "benchmark_results"
     id: Mapped[int] = mapped_column(primary_key=True)
-    benchmark_id: Mapped[int] = mapped_column(ForeignKey("benchmarks.id", ondelete="CASCADE"), index=True)
+    benchmark_id: Mapped[int] = mapped_column(
+        ForeignKey("benchmarks.id", ondelete="CASCADE"), index=True
+    )
     provider: Mapped[str] = mapped_column(String(50))
     model: Mapped[str] = mapped_column(String(200))
     input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -38,5 +44,7 @@ class BenchmarkResult(Base):
     response_length: Mapped[int | None] = mapped_column(Integer, nullable=True)
     response_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
     benchmark: Mapped[Benchmark] = relationship(back_populates="results")

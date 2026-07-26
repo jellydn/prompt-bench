@@ -1,3 +1,110 @@
-import {useEffect,useState} from "react"; import {Activity,History as HistoryIcon,Play,TrendingUp,Moon,Sun,Menu} from "lucide-react"; import BenchmarkRun from "@/pages/BenchmarkRun"; import BenchmarkResults from "@/pages/BenchmarkResults"; import History from "@/pages/History"; import Insights from "@/pages/Insights"; import {Button} from "@/components/ui/button"; import {cn} from "@/lib/utils";
-type Page="run"|"results"|"history"|"insights";
-export default function App(){const[page,setPage]=useState<Page>("run");const[id,setId]=useState<number>();const[dark,setDark]=useState(()=>localStorage.getItem("theme")==="dark");const[open,setOpen]=useState(false);useEffect(()=>{document.documentElement.classList.toggle("dark",dark);localStorage.setItem("theme",dark?"dark":"light")},[dark]);const openResult=(x:number)=>{setId(x);setPage("results")};const nav=[{id:"run" as Page,label:"Run Benchmark",icon:Play},{id:"history" as Page,label:"History",icon:HistoryIcon},{id:"insights" as Page,label:"Insights",icon:TrendingUp}];return <div className="min-h-screen bg-muted/30"><header className="fixed inset-x-0 top-0 z-20 flex h-16 items-center border-b bg-background px-4 md:hidden"><Button variant="ghost" size="icon" onClick={()=>setOpen(!open)}><Menu/></Button><Activity className="ml-3 h-6 w-6"/><b className="ml-2">PromptBench</b></header><aside className={cn("fixed inset-y-0 left-0 z-30 w-64 border-r bg-background p-5 transition-transform md:translate-x-0",open?"translate-x-0":"-translate-x-full")}><button className="mb-8 flex items-center gap-3 text-xl font-bold" onClick={()=>setPage("run")}><span className="rounded-lg bg-primary p-2 text-primary-foreground"><Activity/></span>PromptBench</button><nav className="space-y-1">{nav.map(n=><button key={n.id} onClick={()=>{setPage(n.id);setOpen(false)}} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium",page===n.id||page==="results"&&n.id==="history"?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-muted hover:text-foreground")}><n.icon className="h-4 w-4"/>{n.label}</button>)}</nav><div className="absolute bottom-5 left-5 right-5"><Button variant="outline" className="w-full justify-start" onClick={()=>setDark(!dark)}>{dark?<Sun/>:<Moon/>}{dark?"Light mode":"Dark mode"}</Button></div></aside>{open&&<button aria-label="Close navigation" className="fixed inset-0 z-20 bg-black/30 md:hidden" onClick={()=>setOpen(false)}/>}<main className="px-4 pb-10 pt-24 md:ml-64 md:p-8">{page==="run"&&<BenchmarkRun onComplete={openResult}/>} {page==="history"&&<History onOpen={openResult}/>} {page==="insights"&&<Insights onOpen={openResult}/>} {page==="results"&&id!=null&&<BenchmarkResults id={id} onBack={()=>setPage("history")}/>}</main></div>}
+import { useEffect, useState } from "react";
+import {
+  Activity,
+  History as HistoryIcon,
+  Play,
+  TrendingUp,
+  Moon,
+  Sun,
+  Menu,
+} from "lucide-react";
+import BenchmarkRun from "@/pages/BenchmarkRun";
+import BenchmarkResults from "@/pages/BenchmarkResults";
+import History from "@/pages/History";
+import Insights from "@/pages/Insights";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+type Page = "run" | "results" | "history" | "insights";
+export default function App() {
+  const [page, setPage] = useState<Page>("run");
+  const [id, setId] = useState<number>();
+  const [dark, setDark] = useState(
+    () => localStorage.getItem("theme") === "dark",
+  );
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+    localStorage.setItem("theme", dark ? "dark" : "light");
+  }, [dark]);
+  const openResult = (x: number) => {
+    setId(x);
+    setPage("results");
+  };
+  const nav = [
+    { id: "run" as Page, label: "Run Benchmark", icon: Play },
+    { id: "history" as Page, label: "History", icon: HistoryIcon },
+    { id: "insights" as Page, label: "Insights", icon: TrendingUp },
+  ];
+  return (
+    <div className="min-h-screen bg-muted/30">
+      <header className="fixed inset-x-0 top-0 z-20 flex h-16 items-center border-b bg-background px-4 md:hidden">
+        <Button variant="ghost" size="icon" onClick={() => setOpen(!open)}>
+          <Menu />
+        </Button>
+        <Activity className="ml-3 h-6 w-6" />
+        <b className="ml-2">PromptBench</b>
+      </header>
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-30 w-64 border-r bg-background p-5 transition-transform md:translate-x-0",
+          open ? "translate-x-0" : "-translate-x-full",
+        )}
+      >
+        <button
+          className="mb-8 flex items-center gap-3 text-xl font-bold"
+          onClick={() => setPage("run")}
+        >
+          <span className="rounded-lg bg-primary p-2 text-primary-foreground">
+            <Activity />
+          </span>
+          PromptBench
+        </button>
+        <nav className="space-y-1">
+          {nav.map((n) => (
+            <button
+              key={n.id}
+              onClick={() => {
+                setPage(n.id);
+                setOpen(false);
+              }}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium",
+                page === n.id || (page === "results" && n.id === "history")
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <n.icon className="h-4 w-4" />
+              {n.label}
+            </button>
+          ))}
+        </nav>
+        <div className="absolute bottom-5 left-5 right-5">
+          <Button
+            variant="outline"
+            className="w-full justify-start"
+            onClick={() => setDark(!dark)}
+          >
+            {dark ? <Sun /> : <Moon />}
+            {dark ? "Light mode" : "Dark mode"}
+          </Button>
+        </div>
+      </aside>
+      {open && (
+        <button
+          aria-label="Close navigation"
+          className="fixed inset-0 z-20 bg-black/30 md:hidden"
+          onClick={() => setOpen(false)}
+        />
+      )}
+      <main className="px-4 pb-10 pt-24 md:ml-64 md:p-8">
+        {page === "run" && <BenchmarkRun onComplete={openResult} />}{" "}
+        {page === "history" && <History onOpen={openResult} />}{" "}
+        {page === "insights" && <Insights onOpen={openResult} />}{" "}
+        {page === "results" && id != null && (
+          <BenchmarkResults id={id} onBack={() => setPage("history")} />
+        )}
+      </main>
+    </div>
+  );
+}

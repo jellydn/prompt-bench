@@ -31,6 +31,8 @@ class OpenRouterProvider(OpenAICompatibleProvider):
     api_key = settings.openrouter_api_key
     base_url = "https://openrouter.ai/api/v1/chat/completions"
     # OpenRouter attribution headers (recommended by OpenRouter docs).
-    extra_headers = {"HTTP-Referer": "https://github.com/productsway/PromptBench", "X-Title": "PromptBench"}
+    extra_headers = {
+        "HTTP-Referer": "https://github.com/productsway/PromptBench",
+        "X-Title": "PromptBench",
+    }
     model_names = {m: m for m in FREE_MODELS + PAID_MODELS}
-

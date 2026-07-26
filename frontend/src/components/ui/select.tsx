@@ -1,1 +1,19 @@
-import * as React from "react"; import {cn} from "@/lib/utils"; export const Select=React.forwardRef<HTMLSelectElement,React.SelectHTMLAttributes<HTMLSelectElement>>(({className,...p},r)=><select ref={r} className={cn("h-10 w-full rounded-md border bg-background px-3 text-sm",className)} {...p}/>); Select.displayName="Select"; export const SelectOption=(p:React.OptionHTMLAttributes<HTMLOptionElement>)=><option {...p}/>;
+import * as React from "react";
+import { cn } from "@/lib/utils";
+export const Select = React.forwardRef<
+  HTMLSelectElement,
+  React.SelectHTMLAttributes<HTMLSelectElement>
+>(({ className, ...p }, r) => (
+  <select
+    ref={r}
+    className={cn(
+      "h-10 w-full rounded-md border bg-background px-3 text-sm",
+      className,
+    )}
+    {...p}
+  />
+));
+Select.displayName = "Select";
+export const SelectOption = (
+  p: React.OptionHTMLAttributes<HTMLOptionElement>,
+) => <option {...p} />;
