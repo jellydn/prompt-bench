@@ -8,8 +8,13 @@ class Base(DeclarativeBase):
     pass
 
 
-connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
-engine = create_engine(settings.database_url, connect_args=connect_args)
+_engine_url = settings.database_url
+# Normalize postgresql:// → postgresql+psycopg:// for psycopg v3 driver support
+if _engine_url.startswith("postgresql://") and "+psycopg" not in _engine_url:
+    _engine_url = _engine_url.replace("postgresql://", "postgresql+psycopg://", 1)
+
+connect_args = {"check_same_thread": False} if _engine_url.startswith("sqlite") else {}
+engine = create_engine(_engine_url, connect_args=connect_args)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
