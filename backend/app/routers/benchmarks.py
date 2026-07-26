@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -10,6 +11,8 @@ from ..limiter import limiter
 from ..models import Benchmark, BenchmarkResult
 from ..providers import get_provider
 from ..schemas import BenchmarkCreate, BenchmarkOut, BenchmarkSummary
+
+logger = logging.getLogger("promptbench.benchmarks")
 
 router = APIRouter()
 
@@ -34,6 +37,7 @@ async def run_one(item, benchmark_req):
             )
             return item, result, None
         except Exception as exc:
+            logger.error("Provider %s/%s failed: %s", item.provider, item.model, exc)
             return item, None, str(exc)
 
 
@@ -71,6 +75,12 @@ async def create_benchmark(
     db.add(benchmark)
     db.commit()
     db.refresh(benchmark)
+    logger.info(
+        "Benchmark #%d started — %d model(s), prompt=%d chars",
+        benchmark.id,
+        len(payload.models),
+        len(payload.prompt),
+    )
     outcomes = await asyncio.gather(
         *(run_one(item, payload) for item in payload.models)
     )
@@ -102,6 +112,13 @@ async def create_benchmark(
         "failed" if all(error for _, _, error in outcomes) else "completed"
     )
     db.commit()
+    logger.info(
+        "Benchmark #%d %s — %d/%d succeeded",
+        benchmark.id,
+        benchmark.status,
+        sum(1 for _, _, error in outcomes if not error),
+        len(outcomes),
+    )
     return db.scalar(
         select(Benchmark)
         .options(selectinload(Benchmark.results))
