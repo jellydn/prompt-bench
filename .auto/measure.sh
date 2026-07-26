@@ -90,21 +90,12 @@ fi
 
 # ── API Key Evaluation at Call Time ─────────────────────────────────
 
-# 9. Provider api_key read at call time from settings, not class variable
-MATCHES=0
-for f in backend/app/providers/openai.py backend/app/providers/anthropic.py backend/app/providers/gemini.py backend/app/providers/openrouter.py; do
-  if [ -f "$f" ] && grep -q 'api_key.*=.*settings\.' "$f" 2>/dev/null; then
-    # Check it's inside a method/property, not a class variable
-    if grep -q 'self\.api_key' "$f" 2>/dev/null || grep -q 'api_key.*=.*settings\.' "$f" | grep -q 'def '; then
-      MATCHES=$((MATCHES + 1))
-    fi
-  fi
-done
-# More pragmatic: check that at least one provider reads key at call time instead of import time
-if grep -q 'settings\..*_api_key' backend/app/providers/common.py 2>/dev/null || \
-   grep -q 'settings\..*_api_key' backend/app/providers/openai.py 2>/dev/null || \
-   grep -q 'settings\..*_api_key' backend/app/providers/anthropic.py 2>/dev/null; then
-  pass "API keys read at call time from settings"
+# 9. Provider api_key read at call time from get_settings(), not class variable at import time
+if grep -q 'get_settings()' backend/app/providers/openai.py 2>/dev/null && \
+   grep -q 'get_settings()' backend/app/providers/openrouter.py 2>/dev/null && \
+   grep -q 'get_settings()' backend/app/providers/anthropic.py 2>/dev/null && \
+   grep -q 'get_settings()' backend/app/providers/gemini.py 2>/dev/null; then
+  pass "API keys read at call time via get_settings()"
 else
   fail "API keys still evaluated at import time"
 fi
