@@ -1,15 +1,20 @@
 import asyncio
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
+from ..limiter import limiter
 from ..models import Benchmark, BenchmarkResult
 from ..providers import get_provider
 from ..schemas import BenchmarkCreate, BenchmarkOut, BenchmarkSummary
 
 router = APIRouter()
+
+# Concurrency semaphore: max 5 concurrent provider API calls
+_semaphore = asyncio.Semaphore(5)
 
 
 async def run_one(item, request):
@@ -18,21 +23,36 @@ async def run_one(item, request):
         return item, None, f"Unknown provider: {item.provider}"
     if not provider.is_configured:
         return item, None, f"Provider {item.provider} is not configured"
-    try:
-        result = await provider.generate(
-            request.prompt,
-            item.model,
-            request.system_prompt,
-            request.temperature,
-            request.max_tokens,
-        )
-        return item, result, None
-    except Exception as exc:
-        return item, None, str(exc)
+    async with _semaphore:
+        try:
+            result = await provider.generate(
+                request.prompt,
+                item.model,
+                request.system_prompt,
+                request.temperature,
+                request.max_tokens,
+            )
+            return item, result, None
+        except Exception as exc:
+            return item, None, str(exc)
+
+
+def _repair_stuck_benchmarks(db: Session) -> None:
+    """Mark benchmarks stuck as 'running' for over 5 minutes as 'failed'."""
+    cutoff = datetime.now(UTC) - timedelta(minutes=5)
+    db.execute(
+        update(Benchmark)
+        .where(Benchmark.status == "running")
+        .where(Benchmark.created_at < cutoff)
+        .values(status="failed")
+    )
+    db.commit()
 
 
 @router.post("/benchmarks", response_model=BenchmarkOut)
+@limiter.limit("10/minute")
 async def create_benchmark(request: BenchmarkCreate, db: Session = Depends(get_db)):
+    _repair_stuck_benchmarks(db)
     benchmark = Benchmark(
         prompt=request.prompt,
         system_prompt=request.system_prompt,

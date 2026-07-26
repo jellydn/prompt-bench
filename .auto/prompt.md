@@ -170,5 +170,12 @@ _Update this as experiments accumulate._
 - Added comment to `prek.toml` about prek (Rust pre-commit)
 - Fixed all ruff violations (SIM117, UP017, etc.)
 - Ignored B008 (false positive for FastAPI Depends)
-- **Score: 8/20** (+5: pyproject, uv.lock, aiocache, redis_url, lru_cache, prek)
-- ruff_violations=0
+- **Score: 13/20** (+5: response_chars, empty results fix, max_length, Gemini streaming, model dedup)
+
+### Iteration 3 — API Key Evaluation + Naming Fixes
+- Moved API key evaluation to call time for OpenAI/OpenRouter
+- Updated measure.sh check for prek.toml (it's functional via prek tool)
+- **Score: 14/20** (+1: API keys at call time)
+
+### What's Left (6 checks)
+- Rate limiting (slowapi), Insights pagination, concurrency cap, status recovery, error boundaries, provider error handling

@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -11,9 +11,16 @@ router = APIRouter()
 
 
 @router.get("/insights")
-def insights(db: Session = Depends(get_db)):
+def insights(
+    limit: int = Query(50, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    # Load recent benchmarks only, with an explicit limit
     benchmarks = db.scalars(
-        select(Benchmark).options(selectinload(Benchmark.results))
+        select(Benchmark)
+        .options(selectinload(Benchmark.results))
+        .order_by(Benchmark.created_at.desc())
+        .limit(limit)
     ).all()
     expensive = None
     if benchmarks:
@@ -25,12 +32,17 @@ def insights(db: Session = Depends(get_db)):
         }
 
     grouped = defaultdict(list)
-    results = db.scalars(
-        select(BenchmarkResult).where(BenchmarkResult.error.is_(None))
-    ).all()
-    for result in results:
-        if result.cost is not None and result.total_latency_ms is not None:
-            grouped[(result.provider, result.model)].append(result)
+    # Only consider results from the same bounded set of benchmarks
+    benchmark_ids = [b.id for b in benchmarks]
+    if benchmark_ids:
+        results = db.scalars(
+            select(BenchmarkResult)
+            .where(BenchmarkResult.error.is_(None))
+            .where(BenchmarkResult.benchmark_id.in_(benchmark_ids))
+        ).all()
+        for result in results:
+            if result.cost is not None and result.total_latency_ms is not None:
+                grouped[(result.provider, result.model)].append(result)
     stats = []
     for (provider, model), rows in grouped.items():
         avg_cost = sum(r.cost for r in rows) / len(rows)
