@@ -25,6 +25,11 @@ uv run --extra dev pytest -q --tb=short 2>&1 | tail -20 || {
 
 # ── Frontend checks ─────────────────────────────────────────────────
 cd ../frontend
+echo "--- npm run lint ---"
+npm run lint 2>&1 | tail -5 || {
+    echo "FAIL: frontend lint failed"
+    exit 1
+}
 echo "--- npm run build ---"
 npm run build 2>&1 | tail -5 || {
     echo "FAIL: frontend build failed"
