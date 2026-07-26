@@ -23,6 +23,9 @@ async def lifespan(app: FastAPI):
         _repair_stuck_benchmarks(db)
     finally:
         db.close()
+    # Refresh OpenRouter free model list from API
+    from .providers.model_lists import refresh_openrouter_free_models  # noqa: PLC0415
+    await refresh_openrouter_free_models()
     yield
 
 
