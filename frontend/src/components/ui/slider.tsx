@@ -1,1 +1,14 @@
-import * as React from "react"; import {cn} from "@/lib/utils"; export const Slider=React.forwardRef<HTMLInputElement,Omit<React.InputHTMLAttributes<HTMLInputElement>,"type">>(({className,...p},r)=><input type="range" ref={r} className={cn("h-2 w-full cursor-pointer accent-primary",className)} {...p}/>); Slider.displayName="Slider";
+import * as React from "react";
+import { cn } from "@/lib/utils";
+export const Slider = React.forwardRef<
+  HTMLInputElement,
+  Omit<React.InputHTMLAttributes<HTMLInputElement>, "type">
+>(({ className, ...p }, r) => (
+  <input
+    type="range"
+    ref={r}
+    className={cn("h-2 w-full cursor-pointer accent-primary", className)}
+    {...p}
+  />
+));
+Slider.displayName = "Slider";

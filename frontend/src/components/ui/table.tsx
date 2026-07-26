@@ -1,2 +1,51 @@
-import * as React from "react"; import {cn} from "@/lib/utils";
-export const Table=React.forwardRef<HTMLTableElement,React.TableHTMLAttributes<HTMLTableElement>>(({className,...p},r)=><div className="w-full overflow-auto"><table ref={r} className={cn("w-full caption-bottom text-sm",className)} {...p}/></div>); export const TableHeader=React.forwardRef<HTMLTableSectionElement,React.HTMLAttributes<HTMLTableSectionElement>>((p,r)=><thead ref={r} {...p}/>); export const TableBody=React.forwardRef<HTMLTableSectionElement,React.HTMLAttributes<HTMLTableSectionElement>>((p,r)=><tbody ref={r} {...p}/>); export const TableRow=React.forwardRef<HTMLTableRowElement,React.HTMLAttributes<HTMLTableRowElement>>(({className,...p},r)=><tr ref={r} className={cn("border-b transition-colors hover:bg-muted/50",className)} {...p}/>); export const TableHead=React.forwardRef<HTMLTableCellElement,React.ThHTMLAttributes<HTMLTableCellElement>>(({className,...p},r)=><th ref={r} className={cn("h-12 px-4 text-left font-medium text-muted-foreground",className)} {...p}/>); export const TableCell=React.forwardRef<HTMLTableCellElement,React.TdHTMLAttributes<HTMLTableCellElement>>(({className,...p},r)=><td ref={r} className={cn("p-4",className)} {...p}/>);
+import * as React from "react";
+import { cn } from "@/lib/utils";
+export const Table = React.forwardRef<
+  HTMLTableElement,
+  React.TableHTMLAttributes<HTMLTableElement>
+>(({ className, ...p }, r) => (
+  <div className="w-full overflow-auto">
+    <table
+      ref={r}
+      className={cn("w-full caption-bottom text-sm", className)}
+      {...p}
+    />
+  </div>
+));
+export const TableHeader = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>((p, r) => <thead ref={r} {...p} />);
+export const TableBody = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>((p, r) => <tbody ref={r} {...p} />);
+export const TableRow = React.forwardRef<
+  HTMLTableRowElement,
+  React.HTMLAttributes<HTMLTableRowElement>
+>(({ className, ...p }, r) => (
+  <tr
+    ref={r}
+    className={cn("border-b transition-colors hover:bg-muted/50", className)}
+    {...p}
+  />
+));
+export const TableHead = React.forwardRef<
+  HTMLTableCellElement,
+  React.ThHTMLAttributes<HTMLTableCellElement>
+>(({ className, ...p }, r) => (
+  <th
+    ref={r}
+    className={cn(
+      "h-12 px-4 text-left font-medium text-muted-foreground",
+      className,
+    )}
+    {...p}
+  />
+));
+export const TableCell = React.forwardRef<
+  HTMLTableCellElement,
+  React.TdHTMLAttributes<HTMLTableCellElement>
+>(({ className, ...p }, r) => (
+  <td ref={r} className={cn("p-4", className)} {...p} />
+));

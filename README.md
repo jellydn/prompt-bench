@@ -16,10 +16,10 @@ OpenAI · Anthropic · Google Gemini · OpenRouter · Ollama · vLLM
 
 ## Tech Stack
 
-| Layer    | Technologies                                      |
-|----------|---------------------------------------------------|
+| Layer    | Technologies                                                   |
+| -------- | -------------------------------------------------------------- |
 | Frontend | React, Vite, Tailwind CSS, shadcn/ui, TanStack Query, Recharts |
-| Backend  | FastAPI, PostgreSQL, SQLAlchemy, Redis (optional)  |
+| Backend  | FastAPI, PostgreSQL, SQLAlchemy, Redis (optional)              |
 
 ## Quick Start
 
@@ -97,33 +97,33 @@ curl -X POST http://localhost:8000/api/benchmarks -H 'Content-Type: application/
 
 ### Available free models (curated)
 
-| Model ID | Notes |
-|----------|-------|
-| `openrouter/free` | Auto-selects an available free model |
-| `google/gemma-4-31b-it:free` | General-purpose, 31B dense |
-| `google/gemma-4-26b-a4b-it:free` | 26B MoE, efficient |
-| `nvidia/nemotron-3-ultra-550b-a55b:free` | Large reasoning MoE |
-| `nvidia/nemotron-3-super-120b-a12b:free` | Hybrid MoE |
-| `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | Multimodal nano |
-| `cohere/north-mini-code:free` | Agentic coding, 30B MoE |
-| `poolside/laguna-s-2.1:free` | Coding agent |
-| `poolside/laguna-xs-2.1:free` | Small coding agent |
-| `poolside/laguna-m.1:free` | Flagship coding agent |
-| `inclusionai/ling-3.0-flash:free` | 124B MoE, token-efficient |
+| Model ID                                             | Notes                                |
+| ---------------------------------------------------- | ------------------------------------ |
+| `openrouter/free`                                    | Auto-selects an available free model |
+| `google/gemma-4-31b-it:free`                         | General-purpose, 31B dense           |
+| `google/gemma-4-26b-a4b-it:free`                     | 26B MoE, efficient                   |
+| `nvidia/nemotron-3-ultra-550b-a55b:free`             | Large reasoning MoE                  |
+| `nvidia/nemotron-3-super-120b-a12b:free`             | Hybrid MoE                           |
+| `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | Multimodal nano                      |
+| `cohere/north-mini-code:free`                        | Agentic coding, 30B MoE              |
+| `poolside/laguna-s-2.1:free`                         | Coding agent                         |
+| `poolside/laguna-xs-2.1:free`                        | Small coding agent                   |
+| `poolside/laguna-m.1:free`                           | Flagship coding agent                |
+| `inclusionai/ling-3.0-flash:free`                    | 124B MoE, token-efficient            |
 
 OpenRouter recommends sending attribution headers (`HTTP-Referer`, `X-Title`);
 PromptBench sends them automatically on every OpenRouter request.
 
 ## API Overview
 
-| Method | Endpoint                | Description              |
-|--------|-------------------------|--------------------------|
-| GET    | `/api/providers`        | List providers and models|
-| POST   | `/api/benchmarks`       | Run a benchmark          |
-| GET    | `/api/benchmarks`       | List benchmark history   |
-| GET    | `/api/benchmarks/{id}`  | Get a single benchmark   |
-| DELETE | `/api/benchmarks/{id}`  | Delete a benchmark       |
-| GET    | `/api/insights`         | Cost & performance insights |
+| Method | Endpoint               | Description                 |
+| ------ | ---------------------- | --------------------------- |
+| GET    | `/api/providers`       | List providers and models   |
+| POST   | `/api/benchmarks`      | Run a benchmark             |
+| GET    | `/api/benchmarks`      | List benchmark history      |
+| GET    | `/api/benchmarks/{id}` | Get a single benchmark      |
+| DELETE | `/api/benchmarks/{id}` | Delete a benchmark          |
+| GET    | `/api/insights`        | Cost & performance insights |
 
 ## License
 

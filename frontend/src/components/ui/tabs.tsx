@@ -1,2 +1,68 @@
-import {createContext,useContext,useState,type ReactNode} from "react"; import {cn} from "@/lib/utils";
-const C=createContext<{value:string;set:(v:string)=>void}>({value:"",set:()=>{}}); export function Tabs({defaultValue,children,className}:{defaultValue:string;children:ReactNode;className?:string}){const[value,set]=useState(defaultValue);return <C.Provider value={{value,set}}><div className={className}>{children}</div></C.Provider>} export function TabsList({children,className}:{children:ReactNode;className?:string}){return <div className={cn("inline-flex rounded-md bg-muted p-1",className)}>{children}</div>} export function TabsTrigger({value,children}:{value:string;children:ReactNode}){const c=useContext(C);return <button onClick={()=>c.set(value)} className={cn("rounded px-3 py-1.5 text-sm",c.value===value&&"bg-background shadow")}>{children}</button>} export function TabsContent({value,children,className}:{value:string;children:ReactNode;className?:string}){return useContext(C).value===value?<div className={cn("mt-4",className)}>{children}</div>:null}
+import { createContext, useContext, useState, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
+const C = createContext<{ value: string; set: (v: string) => void }>({
+  value: "",
+  set: () => {},
+});
+export function Tabs({
+  defaultValue,
+  children,
+  className,
+}: {
+  defaultValue: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  const [value, set] = useState(defaultValue);
+  return (
+    <C.Provider value={{ value, set }}>
+      <div className={className}>{children}</div>
+    </C.Provider>
+  );
+}
+export function TabsList({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("inline-flex rounded-md bg-muted p-1", className)}>
+      {children}
+    </div>
+  );
+}
+export function TabsTrigger({
+  value,
+  children,
+}: {
+  value: string;
+  children: ReactNode;
+}) {
+  const c = useContext(C);
+  return (
+    <button
+      onClick={() => c.set(value)}
+      className={cn(
+        "rounded px-3 py-1.5 text-sm",
+        c.value === value && "bg-background shadow",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+export function TabsContent({
+  value,
+  children,
+  className,
+}: {
+  value: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return useContext(C).value === value ? (
+    <div className={cn("mt-4", className)}>{children}</div>
+  ) : null;
+}
