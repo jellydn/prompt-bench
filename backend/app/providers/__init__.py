@@ -54,6 +54,7 @@ def get_providers_cached() -> list[dict]:
                 "id": p.provider_id,
                 "name": p.provider_name,
                 "configured": p.is_configured,
+                "byok_eligible": p.byok_eligible,
                 "base_url": getattr(p, "base_url", None),
                 "models": [asdict(m) for m in p.get_models()],
             }

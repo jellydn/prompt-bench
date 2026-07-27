@@ -28,6 +28,10 @@ class BaseProvider(ABC):
     # Never persisted, never logged — cleared after the request completes.
     _client_api_key: str | None = None
 
+    # Whether this provider supports BYOK (client-supplied API keys).
+    # Local providers (Ollama, vLLM) return False — they don't need keys.
+    byok_eligible: bool = True
+
     @abstractmethod
     async def generate(
         self,

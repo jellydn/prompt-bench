@@ -10,6 +10,7 @@ from .base import BaseProvider, ModelInfo, ProviderResponse
 
 class GeminiProvider(BaseProvider):
     provider_id, provider_name = "gemini", "Google Gemini"
+    supports_byok = True
     model_names = {
         "gemini-1.5-pro": "Gemini 1.5 Pro",
         "gemini-1.5-flash": "Gemini 1.5 Flash",

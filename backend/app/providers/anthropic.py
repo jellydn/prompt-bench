@@ -10,6 +10,7 @@ from .base import BaseProvider, ModelInfo, ProviderResponse
 
 class AnthropicProvider(BaseProvider):
     provider_id, provider_name = "anthropic", "Anthropic"
+    supports_byok = True
     model_names = {
         "claude-3-5-sonnet-20241022": "Claude 3.5 Sonnet",
         "claude-3-5-haiku-20241022": "Claude 3.5 Haiku",

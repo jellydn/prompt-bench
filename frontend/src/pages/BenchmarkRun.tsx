@@ -144,8 +144,8 @@ export default function BenchmarkRun({
                       : "API key not set"}
                 </span>
               </div>
-              {/* BYOK key input — shown for external providers not server-configured */}
-              {!p.configured && p.id !== "ollama" && p.id !== "vllm" && (
+              {/* BYOK key input — shown for eligible providers not server-configured */}
+              {!p.configured && p.byok_eligible && (
                 <div className="mb-3 flex items-center gap-2">
                   <Key className="h-3.5 w-3.5 text-muted-foreground" />
                   <input

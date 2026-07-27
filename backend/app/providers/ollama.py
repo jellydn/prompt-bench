@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 class OllamaProvider(BaseProvider):
     provider_id, provider_name = "ollama", "Ollama"
+    byok_eligible = False
     model_names = {m: m for m in OLLAMA_MODELS}
 
     @property

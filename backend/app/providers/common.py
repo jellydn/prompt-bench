@@ -12,6 +12,7 @@ class OpenAICompatibleProvider(BaseProvider):
     base_url = ""
     model_names: dict[str, str] = {}
     always_configured = False
+    supports_byok = True
     extra_headers: dict[str, str] = {}
 
     @property

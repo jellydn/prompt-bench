@@ -11,6 +11,7 @@ export interface Provider {
   id: string;
   name: string;
   configured: boolean;
+  byok_eligible: boolean;
   base_url: string | null;
   models: ProviderModel[];
 }
