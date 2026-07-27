@@ -26,7 +26,6 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
 
 from ..providers.base import ProviderResponse
 from .cache import CacheBackend, get_cache
@@ -166,7 +165,6 @@ def _serialize_response(response: ProviderResponse) -> bytes:
         "response_chars": response.response_chars,
         "cost": response.cost,
         "error": response.error,
-        "model_created_at": datetime.now(UTC).isoformat(),
     }
     return json.dumps(payload, separators=(",", ":")).encode("utf-8")
 

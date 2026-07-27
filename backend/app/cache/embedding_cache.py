@@ -16,7 +16,6 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
 
 from .cache import CacheBackend, get_cache
 
@@ -94,7 +93,6 @@ def _serialize(vector: list[float], dimension: int) -> bytes:
     payload = {
         "vector": vector,
         "dimension": dimension,
-        "created_at": datetime.now(UTC).isoformat(),
     }
     return json.dumps(payload, separators=(",", ":")).encode("utf-8")
 

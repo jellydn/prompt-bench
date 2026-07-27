@@ -103,47 +103,46 @@ async def create_benchmark(
     )
     outcomes = await asyncio.gather(*(run_one(item, payload) for item in payload.models))
     for item, result, error, cache_info in outcomes:
-        values = (
-            vars(result).copy()
-            if result
-            else {
-                "input_tokens": None,
-                "output_tokens": None,
-                "ttft_ms": None,
-                "total_latency_ms": None,
-                "cost": None,
-                "response_chars": None,
-                "response_text": None,
-            }
-        )
-        values.pop("error", None)
-        # On a cache hit the provider was not called, so report lookup time as
-        # the result latency; otherwise report the measured provider latency.
-        if cache_info.cache_hit:
-            values["total_latency_ms"] = cache_info.total_latency_ms
-        # Cache metrics are meaningful only when we got a provider result;
-        # for error rows we store NULL to match the other nullable fields.
         if result is not None:
-            cache_hit = cache_info.cache_hit or None
-            cache_lookup_ms = cache_info.cache_lookup_ms
-            provider_latency_ms = cache_info.provider_latency_ms
-        else:
-            cache_hit = None
-            cache_lookup_ms = None
-            provider_latency_ms = None
-        db.add(
-            BenchmarkResult(
-                benchmark_id=benchmark.id,
-                provider=item.provider,
-                model=item.model,
-                error=error,
-                cache_hit=cache_hit,
-                cache_type=cache_info.cache_type,
-                cache_lookup_ms=cache_lookup_ms,
-                provider_latency_ms=provider_latency_ms,
-                **values,
+            # On a cache hit the provider was not called, so report lookup
+            # time as the result latency; otherwise report measured latency.
+            total_latency = (
+                cache_info.total_latency_ms
+                if cache_info.cache_hit
+                else result.total_latency_ms
             )
-        )
+            db.add(
+                BenchmarkResult(
+                    benchmark_id=benchmark.id,
+                    provider=item.provider,
+                    model=item.model,
+                    input_tokens=result.input_tokens,
+                    output_tokens=result.output_tokens,
+                    ttft_ms=result.ttft_ms,
+                    total_latency_ms=total_latency,
+                    cost=result.cost,
+                    response_chars=result.response_chars,
+                    response_text=result.response_text,
+                    error=error,
+                    cache_hit=cache_info.cache_hit or None,
+                    cache_type=cache_info.cache_type,
+                    cache_lookup_ms=cache_info.cache_lookup_ms,
+                    provider_latency_ms=cache_info.provider_latency_ms,
+                )
+            )
+        else:
+            db.add(
+                BenchmarkResult(
+                    benchmark_id=benchmark.id,
+                    provider=item.provider,
+                    model=item.model,
+                    error=error,
+                    cache_hit=None,
+                    cache_type=None,
+                    cache_lookup_ms=None,
+                    provider_latency_ms=None,
+                )
+            )
     benchmark.status = "failed" if all(error for _, _, error, _ in outcomes) else "completed"
     db.commit()
     logger.info(
