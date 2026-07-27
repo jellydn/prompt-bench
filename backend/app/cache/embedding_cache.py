@@ -10,14 +10,13 @@ concurrently.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
-from .cache import CacheBackend, get_cache
+from .cache import CacheBackend, _KeyLockRegistry, get_cache
 
 logger = logging.getLogger("promptbench.cache.embedding")
 
@@ -41,19 +40,7 @@ class EmbeddingCache:
     def __init__(self, backend: CacheBackend, ttl: int = DEFAULT_EMBEDDING_TTL) -> None:
         self._backend = backend
         self._ttl = ttl
-        self._key_locks: dict[str, asyncio.Lock] = {}
-        self._guards_lock = asyncio.Lock()
-
-    async def _key_lock(self, key: str) -> asyncio.Lock:
-        lock = self._key_locks.get(key)
-        if lock is not None:
-            return lock
-        async with self._guards_lock:
-            lock = self._key_locks.get(key)
-            if lock is None:
-                lock = asyncio.Lock()
-                self._key_locks[key] = lock
-            return lock
+        self._key_locks = _KeyLockRegistry()
 
     async def get_or_compute(
         self,
@@ -70,7 +57,7 @@ class EmbeddingCache:
                 logger.debug("Embedding HIT key=%s lookup=%dms", key, lookup_ms)
                 return EmbeddingResult(vector, dimension, True, lookup_ms)
 
-        lock = await self._key_lock(key)
+        lock = self._key_locks.get(key)
         async with lock:
             lookup_start = time.perf_counter()
             cached = await self._backend.get(key)

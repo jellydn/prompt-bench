@@ -78,6 +78,34 @@ class _StatsCounters:
             self.lookup_sum_ms = 0.0
 
 
+# ── Per-key lock registry (shared by response + embedding caches) ───────
+class _KeyLockRegistry:
+    """Registry of per-key asyncio.Lock objects for stampede prevention.
+
+    Ensures N concurrent requests for the same key trigger exactly one
+    compute — no guard lock needed because ``asyncio.Lock()`` is
+    synchronous and asyncio only yields at ``await`` points.
+    """
+
+    def __init__(self) -> None:
+        self._locks: dict[str, asyncio.Lock] = {}
+
+    def get(self, key: str) -> asyncio.Lock:
+        """Return or create the per-key lock.
+
+        Avoids ``setdefault`` so we don't construct a throwaway Lock on
+        every cache hit (the common path). Safe in asyncio because no
+        ``await`` occurs between the check and the assignment, so another
+        task cannot interleave.
+        """
+        lock = self._locks.get(key)
+        if lock is not None:
+            return lock
+        lock = asyncio.Lock()
+        self._locks[key] = lock
+        return lock
+
+
 class CacheBackend(ABC):
     """Async cache backend interface."""
 
