@@ -28,7 +28,7 @@ PROVIDERS = {
 
 _provider_cache: list[dict] | None = None
 _provider_cache_ts: float = 0.0
-_PROVIDER_CACHE_TTL = 300  # 5 seconds
+_PROVIDER_CACHE_TTL = 300  # 5 minutes
 
 
 def get_provider(provider_id: str):
