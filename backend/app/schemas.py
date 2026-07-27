@@ -16,6 +16,9 @@ class BenchmarkCreate(BaseModel):
     models: list[ModelSelection] = Field(min_length=1, max_length=10)
     # Set to False to bypass the response cache for this run (always calls providers).
     cache: bool = True
+    # Bring-your-own-key: per-provider API keys supplied by the browser.
+    # Keys are never persisted, never logged — kept in memory for this request only.
+    client_keys: dict[str, str] | None = None
 
 
 class ResultOut(BaseModel):

@@ -1,5 +1,7 @@
 import asyncio
+import copy
 import logging
+import re
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -26,6 +28,20 @@ async def run_one(item, benchmark_req):
     provider = get_provider(item.provider)
     if not provider:
         return item, None, f"Unknown provider: {item.provider}", CacheInfo()
+
+    # ── BYOK: inject client-supplied key for this request ──────────────
+    client_key = (
+        benchmark_req.client_keys.get(item.provider)
+        if benchmark_req.client_keys
+        else None
+    )
+    if client_key:
+        # Clone the provider so we don't mutate the global singleton —
+        # concurrent BYOK requests for the same provider must not race.
+        provider = copy.copy(provider)
+        provider._client_api_key = client_key
+        logger.debug("BYOK key used for provider=%s", item.provider)
+
     if not provider.is_configured:
         return item, None, f"Provider {item.provider} is not configured", CacheInfo()
 
@@ -51,14 +67,23 @@ async def run_one(item, benchmark_req):
             )
 
     try:
+        # BYOK keys are per-user — sharing cached results across different
+        # keys would leak responses and break billing. Disable the cache.
+        use_cache = benchmark_req.cache and not client_key
         response_cache = await get_response_cache()
         result, cache_info = await response_cache.get_or_compute(
-            cache_key, _compute, cacheable=benchmark_req.cache
+            cache_key, _compute, cacheable=use_cache
         )
         return item, result, None, cache_info
     except Exception as exc:
         logger.error("Provider %s/%s failed: %s", item.provider, item.model, exc)
-        return item, None, str(exc), CacheInfo()
+        return item, None, _sanitize_error(str(exc)), CacheInfo()
+
+
+def _sanitize_error(message: str) -> str:
+    """Strip API key patterns from error messages returned to the frontend."""
+    # Common key prefixes: sk-, sk-ant-, AIza, sk-or-v1-
+    return re.sub(r"(sk-[a-zA-Z0-9_-]{20,}|AIza[a-zA-Z0-9_-]{30,})", "***", message)
 
 
 def _repair_stuck_benchmarks(db: Session) -> None:

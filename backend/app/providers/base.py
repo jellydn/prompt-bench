@@ -24,6 +24,9 @@ class ProviderResponse:
 class BaseProvider(ABC):
     provider_id: str
     provider_name: str
+    # Set by run_one() when the user supplies a BYOK key for this provider.
+    # Never persisted, never logged — cleared after the request completes.
+    _client_api_key: str | None = None
 
     @abstractmethod
     async def generate(

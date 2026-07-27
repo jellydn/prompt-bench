@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Play, LoaderCircle, Server } from "lucide-react";
+import { Play, LoaderCircle, Server, Key, Eye, EyeOff } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +25,8 @@ export default function BenchmarkRun({
   const [temp, setTemp] = useState(0.7);
   const [max, setMax] = useState(1000);
   const [selected, setSelected] = useState<string[]>([]);
+  const [clientKeys, setClientKeys] = useState<Record<string, string>>({});
+  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const providers = useQuery({
     queryKey: ["providers"],
     queryFn: api.providers,
@@ -37,6 +39,15 @@ export default function BenchmarkRun({
     setSelected((s) =>
       s.includes(key) ? s.filter((x) => x !== key) : [...s, key],
     );
+  const hasClientKey = (providerId: string) =>
+    (clientKeys[providerId]?.length ?? 0) > 0;
+  const isConfigured = (p: { id: string; configured: boolean }) =>
+    p.configured || hasClientKey(p.id);
+  const maskKey = (key: string) =>
+    key.length > 8 ? `${key.slice(0, 4)}${'•'.repeat(key.length - 8)}${key.slice(-4)}` : '••••••••';
+  const nonEmptyClientKeys = Object.fromEntries(
+    Object.entries(clientKeys).filter(([, v]) => v.trim()),
+  );
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
@@ -111,40 +122,78 @@ export default function BenchmarkRun({
               Could not load providers: {providers.error.message}
             </p>
           )}
-          {providers.data?.map((p) => (
+          {providers.data?.map((p) => {
+            const conf = isConfigured(p);
+            return (
             <div
               key={p.id}
-              title={!p.configured ? "API key not set" : undefined}
+              title={!conf ? "API key not set" : undefined}
               className={cn(
                 "rounded-lg border p-4",
-                !p.configured && "cursor-not-allowed opacity-45",
+                !conf && "cursor-not-allowed opacity-45",
               )}
             >
               <div className="mb-3 flex items-center gap-2 font-semibold">
                 <Server className="h-4 w-4" />
                 {p.name}
                 <span className="ml-auto text-xs text-muted-foreground">
-                  {p.configured ? "Configured" : "API key not set"}
+                  {p.configured
+                    ? "Configured"
+                    : hasClientKey(p.id)
+                      ? "Your key"
+                      : "API key not set"}
                 </span>
               </div>
+              {/* BYOK key input — shown for external providers not server-configured */}
+              {!p.configured && p.id !== "ollama" && p.id !== "vllm" && (
+                <div className="mb-3 flex items-center gap-2">
+                  <Key className="h-3.5 w-3.5 text-muted-foreground" />
+                  <input
+                    type={showKeys[p.id] ? "text" : "password"}
+                    className="flex-1 rounded border bg-background px-2 py-1 text-xs font-mono"
+                    placeholder={`${p.name} API key…`}
+                    value={clientKeys[p.id] || ""}
+                    onChange={(e) =>
+                      setClientKeys((prev) => ({ ...prev, [p.id]: e.target.value }))
+                    }
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-foreground"
+                    onClick={() =>
+                      setShowKeys((prev) => ({ ...prev, [p.id]: !prev[p.id] }))
+                    }
+                    title={showKeys[p.id] ? "Hide key" : "Show key"}
+                  >
+                    {showKeys[p.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              )}
+              {hasClientKey(p.id) && !p.configured && !showKeys[p.id] && (
+                <p className="mb-2 text-[10px] text-muted-foreground">
+                  {maskKey(clientKeys[p.id])}
+                </p>
+              )}
               <div className="flex flex-wrap gap-2">
                 {p.models.map((m) => {
-                  const key = `${p.id}:${m.id}`;
+                  const k = `${p.id}:${m.id}`;
                   return (
                     <label
-                      key={key}
+                      key={k}
                       className={cn(
                         "cursor-pointer rounded-full border px-3 py-1.5 text-sm",
-                        selected.includes(key) &&
+                        selected.includes(k) &&
                           "border-primary bg-primary text-primary-foreground",
                       )}
                     >
                       <input
                         className="sr-only"
                         type="checkbox"
-                        disabled={!p.configured}
-                        checked={selected.includes(key)}
-                        onChange={() => toggle(key)}
+                        disabled={!conf}
+                        checked={selected.includes(k)}
+                        onChange={() => toggle(k)}
                       />
                       {m.name}
                     </label>
@@ -152,7 +201,7 @@ export default function BenchmarkRun({
                 })}
               </div>
             </div>
-          ))}
+          )})}
         </CardContent>
       </Card>
       {run.isError && (
@@ -173,6 +222,9 @@ export default function BenchmarkRun({
               const [provider, model] = x.split(":");
               return { provider, model };
             }),
+            ...(Object.keys(nonEmptyClientKeys).length > 0
+              ? { client_keys: nonEmptyClientKeys }
+              : {}),
           })
         }
       >

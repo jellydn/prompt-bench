@@ -16,7 +16,7 @@ class OpenAICompatibleProvider(BaseProvider):
 
     @property
     def is_configured(self) -> bool:
-        return self.always_configured or bool(self.api_key)
+        return self.always_configured or bool(self._client_api_key or self.api_key)
 
     def get_models(self):
         return [
