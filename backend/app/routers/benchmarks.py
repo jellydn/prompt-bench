@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session, selectinload
 
+from ..cache import BENCHMARK_CONFIG_VERSION, get_response_cache, response_cache_key
+from ..cache.response_cache import CacheInfo
 from ..database import get_db
 from ..limiter import limiter
 from ..models import Benchmark, BenchmarkResult
@@ -23,22 +25,40 @@ _semaphore = asyncio.Semaphore(5)
 async def run_one(item, benchmark_req):
     provider = get_provider(item.provider)
     if not provider:
-        return item, None, f"Unknown provider: {item.provider}"
+        return item, None, f"Unknown provider: {item.provider}", CacheInfo()
     if not provider.is_configured:
-        return item, None, f"Provider {item.provider} is not configured"
-    async with _semaphore:
-        try:
-            result = await provider.generate(
+        return item, None, f"Provider {item.provider} is not configured", CacheInfo()
+
+    cache_key = response_cache_key(
+        provider=item.provider,
+        model=item.model,
+        prompt_template=benchmark_req.prompt,
+        rendered_prompt=benchmark_req.prompt,
+        system_prompt=benchmark_req.system_prompt,
+        temperature=benchmark_req.temperature,
+        max_tokens=benchmark_req.max_tokens,
+        benchmark_config_version=BENCHMARK_CONFIG_VERSION,
+    )
+
+    async def _compute():
+        async with _semaphore:
+            return await provider.generate(
                 benchmark_req.prompt,
                 item.model,
                 benchmark_req.system_prompt,
                 benchmark_req.temperature,
                 benchmark_req.max_tokens,
             )
-            return item, result, None
-        except Exception as exc:
-            logger.error("Provider %s/%s failed: %s", item.provider, item.model, exc)
-            return item, None, str(exc)
+
+    try:
+        response_cache = await get_response_cache()
+        result, cache_info = await response_cache.get_or_compute(
+            cache_key, _compute, cacheable=benchmark_req.cache
+        )
+        return item, result, None, cache_info
+    except Exception as exc:
+        logger.error("Provider %s/%s failed: %s", item.provider, item.model, exc)
+        return item, None, str(exc), CacheInfo()
 
 
 def _repair_stuck_benchmarks(db: Session) -> None:
@@ -82,7 +102,7 @@ async def create_benchmark(
         len(payload.prompt),
     )
     outcomes = await asyncio.gather(*(run_one(item, payload) for item in payload.models))
-    for item, result, error in outcomes:
+    for item, result, error, cache_info in outcomes:
         values = (
             vars(result).copy()
             if result
@@ -97,22 +117,40 @@ async def create_benchmark(
             }
         )
         values.pop("error", None)
+        # On a cache hit the provider was not called, so report lookup time as
+        # the result latency; otherwise report the measured provider latency.
+        if cache_info.cache_hit:
+            values["total_latency_ms"] = cache_info.total_latency_ms
+        # Cache metrics are meaningful only when we got a provider result;
+        # for error rows we store NULL to match the other nullable fields.
+        if result is not None:
+            cache_hit = cache_info.cache_hit or None
+            cache_lookup_ms = cache_info.cache_lookup_ms
+            provider_latency_ms = cache_info.provider_latency_ms
+        else:
+            cache_hit = None
+            cache_lookup_ms = None
+            provider_latency_ms = None
         db.add(
             BenchmarkResult(
                 benchmark_id=benchmark.id,
                 provider=item.provider,
                 model=item.model,
                 error=error,
+                cache_hit=cache_hit,
+                cache_type=cache_info.cache_type,
+                cache_lookup_ms=cache_lookup_ms,
+                provider_latency_ms=provider_latency_ms,
                 **values,
             )
         )
-    benchmark.status = "failed" if all(error for _, _, error in outcomes) else "completed"
+    benchmark.status = "failed" if all(error for _, _, error, _ in outcomes) else "completed"
     db.commit()
     logger.info(
         "Benchmark #%d %s — %d/%d succeeded",
         benchmark.id,
         benchmark.status,
-        sum(1 for _, _, error in outcomes if not error),
+        sum(1 for _, _, error, _ in outcomes if not error),
         len(outcomes),
     )
     return db.scalar(

@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from .config import settings
 from .database import init_db
 from .limiter import limiter
-from .routers import benchmarks, insights, providers
+from .routers import benchmarks, cache, insights, providers
 
 # Configure structured logging for the application
 logging.basicConfig(
@@ -44,6 +44,11 @@ async def lifespan(app: FastAPI):
     )
 
     await refresh_openrouter_free_models()
+    # Initialise the cache backend (Redis or in-memory fallback) early so the
+    # choice is logged at startup rather than on first benchmark request.
+    from .cache import get_cache  # noqa: PLC0415
+
+    await get_cache()
     logger.info(
         "PromptBench ready — %d OpenRouter free models",
         len(OPENROUTER_FREE_MODELS),
@@ -66,6 +71,7 @@ app.add_middleware(SlowAPIMiddleware)
 app.include_router(providers.router, prefix="/api")
 app.include_router(benchmarks.router, prefix="/api")
 app.include_router(insights.router, prefix="/api")
+app.include_router(cache.router, prefix="/api")
 
 
 @app.get("/api/health")

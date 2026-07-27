@@ -14,6 +14,14 @@ class Settings(BaseSettings):
     vllm_base_url: str = "http://localhost:8001"
     cors_origins: list[str] = ["http://localhost:5173", "https://prompt-bench.fly.dev"]
 
+    # ── Cache (Redis with in-memory fallback) ───────────────────────────
+    # Set REDIS_URL to enable Redis; leave empty to use the in-memory backend.
+    redis_url: str = ""
+    cache_enabled: bool = True
+    # TTLs in seconds. Defaults: response = 30 min, embedding = 24 h.
+    cache_ttl_response: int = 30 * 60
+    cache_ttl_embedding: int = 24 * 60 * 60
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @field_validator("cors_origins", mode="before")

@@ -14,6 +14,8 @@ class BenchmarkCreate(BaseModel):
     temperature: float = Field(0.7, ge=0, le=2)
     max_tokens: int = Field(1000, gt=0)
     models: list[ModelSelection] = Field(min_length=1, max_length=10)
+    # Set to False to bypass the response cache for this run (always calls providers).
+    cache: bool = True
 
 
 class ResultOut(BaseModel):
@@ -29,6 +31,10 @@ class ResultOut(BaseModel):
     response_chars: int | None
     response_text: str | None
     error: str | None
+    cache_hit: bool | None = None
+    cache_type: str | None = None
+    cache_lookup_ms: int | None = None
+    provider_latency_ms: int | None = None
 
 
 class BenchmarkOut(BaseModel):
