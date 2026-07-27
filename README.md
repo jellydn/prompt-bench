@@ -90,6 +90,30 @@ cp .env.example .env
 # Then edit .env with your API keys
 ```
 
+### Caching
+
+PromptBench caches LLM responses and embeddings to speed up repeated benchmark
+runs and eliminate provider cost for cached results. Redis is the primary
+backend with an automatic in-memory fallback when Redis is unavailable.
+
+```bash
+# backend/.env
+REDIS_URL=redis://localhost:6379/0   # leave empty for in-memory cache
+CACHE_TTL_RESPONSE=1800              # 30 min (seconds)
+CACHE_TTL_EMBEDDING=86400            # 24 h (seconds)
+```
+
+CLI:
+
+```bash
+promptbench cache stats              # show entries, hit rate, memory, latency
+promptbench cache clear              # flush all entries
+promptbench cache warm bench.yaml    # pre-populate the cache
+```
+
+See [docs/caching.md](docs/caching.md) for the full architecture, cache key
+design, TTL strategy, and invalidation rules.
+
 ## Testing with OpenRouter Free Models
 
 PromptBench ships with a curated set of OpenRouter **free models** (zero-cost inference) so you can benchmark end-to-end without spending anything.

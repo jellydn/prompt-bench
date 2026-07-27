@@ -11,6 +11,7 @@ PromptBench — open-source benchmarking tool comparing AI prompts/models by cos
 | `frontend/`          | React SPA (Vite + React Query + Recharts + shadcn/ui) |
 | `backend/`           | FastAPI app (SQLAlchemy ORM, PostgreSQL or SQLite)    |
 | `docker-compose.yml` | Full stack: postgres, redis, backend, frontend        |
+| `docs/caching.md`    | Cache architecture, key design, TTL, invalidation     |
 
 ## Key Commands
 
@@ -50,6 +51,7 @@ uvicorn app.main:app --reload --port 8000
 - **CORS**: Defaults to `http://localhost:5173` only (set in `backend/app/config.py` `cors_origins`).
 - **OpenRouter free models**: API keys start with `sk-or-v1-` (NOT `sk-proj-`). Free model IDs end in `:free` (e.g. `google/gemma-4-31b-it:free`). Using an OpenAI key (`sk-proj-`) with OpenRouter returns 401.
 - **Backend lifespan**: `init_db()` is called on app startup via FastAPI `lifespan` context manager; tables are created with `Base.metadata.create_all`.
+- **Cache layer**: `backend/app/cache/` provides response + embedding caching. Redis is the primary backend (`REDIS_URL`); when Redis is unavailable it falls back to an in-memory cache without crashing. Response TTL defaults to 30 min, embedding TTL to 24 h. See `docs/caching.md`.
 
 ## Testing
 

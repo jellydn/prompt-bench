@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -42,5 +42,10 @@ class BenchmarkResult(Base):
     response_chars: Mapped[int | None] = mapped_column("response_length", Integer, nullable=True)
     response_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # ── Cache metrics (nullable for pre-cache rows and error results) ──
+    cache_hit: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    cache_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    cache_lookup_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    provider_latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     benchmark: Mapped[Benchmark] = relationship(back_populates="results")
