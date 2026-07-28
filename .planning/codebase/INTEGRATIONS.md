@@ -2,84 +2,75 @@
 
 ## AI Model Providers
 
-| Provider | Provider ID | Auth Method | Transport | Files |
-|----------|------------|-------------|-----------|-------|
-| OpenAI | `openai` | `Authorization: Bearer` header | OpenAI SSE (delta chunks + usage) | `openai.py`, `common.py` |
-| Anthropic | `anthropic` | `x-api-key` header | Custom SSE (content_block_delta) | `anthropic.py` |
-| Google Gemini | `gemini` | `?key=` URL query param | Custom SSE (candidates/parts) | `gemini.py` |
-| OpenRouter | `openrouter` | `Authorization: Bearer` header | OpenAI SSE (same as OpenAI) | `openrouter.py`, `common.py` |
-| Ollama (local) | `ollama` | None | JSON streaming (one JSON per line) | `ollama.py` |
-| vLLM (local) | `vllm` | None | OpenAI SSE (same as OpenAI) | `vllm.py`, `common.py` |
+| Provider | File | Auth method | BYOK support |
+|----------|------|-------------|-------------|
+| OpenAI | `providers/openai.py` | Bearer token (Authorization header) | ✅ (Authorization header override) |
+| Anthropic | `providers/anthropic.py` | x-api-key header | ✅ (x-api-key header override) |
+| Google Gemini | `providers/gemini.py` | URL query param (?key=...) | ✅ (URL param override) |
+| OpenRouter | `providers/openrouter.py` | Bearer token | ✅ (inherits from OpenAICompatibleProvider) |
+| Ollama | `providers/ollama.py` | None (local) | N/A |
+| vLLM | `providers/vllm.py` | Optional API key | ✅ |
 
-### Provider pattern (ADR-002)
+### OpenRouter dynamic model refresh
 
-All providers extend `BaseProvider(ABC)`:
-- `async generate(prompt, model, system_prompt, temperature, max_tokens) → ProviderResponse`
-- `get_models() → list[ModelInfo]` — default implementation reads `PRICING[self.provider_id]` with `.get()` fallback for safety
-- `is_configured` property — checks server API key or BYOK key
+`refresh_openrouter_free_models()` fetches the live model list from `https://openrouter.ai/api/v1/models` on startup (1-hour TTL). After each refresh:
 
-`OpenAICompatibleProvider` is a shared base for OpenAI, OpenRouter, and vLLM — implements SSE streaming once.
+1. `OPENROUTER_FREE_MODELS` is updated in-place
+2. `rebuild_openrouter_pricing()` regenerates `PRICING["openrouter"]` from live free models + `_OPENROUTER_PAID_PRICING` constant
+3. `invalidate_provider_cache()` ensures `/api/providers` returns updated models
 
-### BYOK (Bring Your Own Key) — ADR-003
+Both deferred imports in `model_lists.py` break the circular import chain (`base.py → pricing.py → model_lists.py → providers/__init__.py`).
 
-Two-phase architecture:
-- **Phase 1 (per-request)**: `client_keys: dict[str, str]` in `CreateBenchmark` body. Keys injected via `provider._client_api_key`, never persisted.
-- **Phase 2 (session-scoped)**: `SessionKeyStore` with cookie-based session, 30-min inactive TTL. `POST /api/session-key`, `DELETE /api/session-key`, `GET /api/session-key/providers`.
+### BYOK architecture
 
-Key priority: per-request > session > server-configured.
+Three-tier priority per ADR-003:
+1. **Per-request key**: `benchmark_req.client_keys[provider]`
+2. **Session-scoped key**: `GET /api/session-key` stores in `SessionKeyStore` (in-memory, 30-min TTL), injected via `pb_session` HttpOnly cookie
+3. **Server-configured key**: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc. in `.env`
 
-### Model lists (July 2026)
+BYOK disables the response cache (ADR-007) to prevent cross-user response leakage.
 
-| Provider | Models |
-|----------|--------|
-| OpenAI | gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, gpt-4o, gpt-4o-mini, o3, o4-mini |
-| Anthropic | claude-sonnet-5, claude-opus-5, claude-fable-5, claude-haiku-4-5 |
-| Gemini | gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite, gemini-3.5-flash, gemini-3.6-flash |
-| OpenRouter | 11 free (refreshed at startup) + 7 paid (static) |
-| Ollama | llama3.1, mistral, qwen2.5, phi3 |
-| vLLM | Meta-Llama-3.1-8B, Mistral-7B |
+## Database
 
-Model lists are shared via `model_lists.py` (single source of truth for both providers and pricing). OpenRouter free models refresh from the API at startup (1-hour TTL).
+| Environment | URL | Driver |
+|-------------|-----|--------|
+| Local (SQLite) | `sqlite:///./promptbench.db` | sqlite3 |
+| Docker Compose | `postgresql://promptbench:promptbench@postgres:5432/promptbench` | psycopg v3 |
+| Fly.io | PostgreSQL (Fly Postgres) | psycopg v3 |
 
-## Databases
+URL normalization: `db_utils.normalize_db_url()` converts `postgres://` → `postgresql+psycopg://` (ADR-008). Used by both `database.py` (FastAPI) and `env.py` (Alembic).
 
-| Database | Role | Connection |
-|----------|------|-----------|
-| PostgreSQL | Primary (production, Docker) | `DATABASE_URL` env var, psycopg v3 driver |
-| SQLite | Development fallback | `sqlite:///./promptbench.db` |
-| Redis | Cache backend (optional) | `REDIS_URL` env var; falls back to in-memory |
+### Migrations
 
-**URL normalization**: `db_utils.normalize_db_url()` handles `postgres://` → `postgresql+psycopg://` for Fly.io compatibility.
+| Migration | Description |
+|-----------|-------------|
+| `2dae871076fe` | Initial schema (benchmarks + benchmark_results) |
+| `0002_cache_metrics` | Cache columns (cache_hit, cache_type, cache_lookup_ms, provider_latency_ms) — idempotent via inspector |
 
-## Cache Layer
+Migrations run at startup via `alembic upgrade head` (ADR-009). Alembic is in main dependencies (moved from dev in PR #11 — was causing production 500 when missing).
 
-| Component | Backend | TTL |
-|-----------|---------|-----|
-| Response cache | Redis / in-memory | 24 hours |
-| Embedding cache | Redis / in-memory | 7 days |
-| Provider info cache | In-memory (lru_cache) | 5 minutes |
+### Startup health check
 
-**Stampede prevention** (ADR-004): `_KeyLockRegistry` — per-key `asyncio.Lock` prevents concurrent identical provider calls.
+`_verify_expected_columns()` (added in PR #12) checks that all 4 cache columns exist on `benchmark_results` after migrations. Logs WARNING if missing with remediation steps. Best-effort, never blocks startup.
 
-**BYOK isolation** (ADR-007): Cache disabled when BYOK keys are active to prevent cross-user leakage.
+## Caching
 
-## Rate Limiting
+| Backend | Driver | Fallback |
+|---------|--------|----------|
+| Redis | redis-py ≥5.0.0 | In-memory dict (`_InMemoryCache`) |
 
-| Endpoint | Limit |
-|----------|-------|
-| Global | 60/min (slowapi) |
-| POST /api/benchmarks | 10/min |
+- Response cache keys include: provider, model, prompt, system_prompt, temperature, max_tokens, benchmark_config_version
+- Embedding cache keys include: normalized text, provider, model, dimensions, config version
+- Stampede prevention via `_KeyLockRegistry` (ADR-004)
+- Cache disabled when BYOK keys active (ADR-007)
+- Cache failures never fail benchmarks
 
-## GitHub Integrations
+## External APIs
 
-| Service | Purpose |
-|---------|---------|
-| GitHub Actions CI | Backend tests (ruff + pytest), frontend (tsc + vitest) |
-| CodeRabbit | AI code review on PRs |
-| GitGuardian | Secret scanning |
-| Socket | Supply chain security |
-| Fly.io deploy | Auto-deploy on push to main |
+| Service | Endpoint | Purpose |
+|---------|----------|---------|
+| OpenRouter | `/api/v1/models` | Free model list refresh (startup, 1-hour TTL) |
 
-## Session Keys
+## CORS
 
-`SessionKeyStore` — in-memory session-scoped BYOK keys. Single process only (not shared across Uvicorn workers). Cookie `pb_session` tracks session identity. 30-minute inactivity TTL.
+`allow_credentials=True` (needed for `pb_session` BYOK cookie). Origins from `settings.cors_origins`. Methods: GET, POST, DELETE, OPTIONS.

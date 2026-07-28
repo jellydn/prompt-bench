@@ -23,8 +23,6 @@
 | Module | ESNext (bundler resolution) |
 | JSX | react-jsx |
 | Strict mode | `true` |
-| No unused locals | `false` (lenient) |
-| No unused params | `false` (lenient) |
 
 ESLint (`eslint.config.js`): typescript-eslint recommended rules.
 
@@ -38,7 +36,7 @@ ESLint (`eslint.config.js`): typescript-eslint recommended rules.
 | API endpoints | kebab-case | `/api/session-key`, `/api/cache/stats` |
 | React components | PascalCase files | `BenchmarkCacheSection.tsx` |
 | Test files | `test_*.py` | `test_providers.py` |
-| Test classes/functions | `Test*` / `test_*` | `TestBYOKAuthHeader`, `test_known_model` |
+| Test classes/functions | `Test*` / `test_*` | `TestBYOKAuthHeader`, `test_downgrade_preserves_non_cache_data` |
 | Python modules | snake_case | `db_utils.py`, `model_lists.py` |
 
 ## Patterns
@@ -49,9 +47,13 @@ ESLint (`eslint.config.js`): typescript-eslint recommended rules.
 
 **Migrations**: `0002_add_cache_metrics` uses SQLAlchemy `inspect()` to check column existence before each `batch_alter_table.add_column()` — avoids transaction abort on PostgreSQL. `_repair_stuck_benchmarks` catches any exception and rolls back.
 
+**Startup health check**: `_verify_expected_columns()` (PR #12) checks cache columns exist on `benchmark_results` after migrations. Logs WARNING if missing, never blocks startup. Best-effort diagnostic that would have caught the production 500 at startup.
+
 **Cache failures**: Both response and embedding caches catch exceptions on store — a cache write failure doesn't fail the benchmark. Cache backend unavailability falls back to in-memory.
 
-**Frontend**: `<ErrorBoundary>` wraps all routes. API errors shown inline via `q.isError ? <error message>`. BYOK key save failures silently uncheck "Remember" checkbox.
+**Migration tests**: NullPool + WAL journal mode on SQLite to avoid write-lock contention between test engine and alembic's engine. WAL sidecar files cleaned up in finally block.
+
+**Frontend**: `<ErrorBoundary>` wraps all routes. API errors shown inline via `q.isError ? <error message>`.
 
 ### Logging
 
@@ -62,15 +64,19 @@ Structured logging via `logging.basicConfig`:
 
 Log levels:
 - `INFO`: startup, benchmark creation/completion, cache hits, migration status
-- `WARNING`: API failures, migration issues, Redis connection failures
-- `DEBUG`: BYOK key usage (provider only, never the key itself)
+- `WARNING`: API failures, migration issues, Redis connection failures, **missing columns** (health check)
+- `DEBUG`: BYOK key usage (provider only, never the key itself), column verification skipped
 - `ERROR`: Provider call failures
 
-**Security**: API keys NEVER logged. `_sanitize_error()` runs before `logger.error()`. BYOK logs only provider name. Database URL sanitized via `_safe_url()`.
+**Security**: API keys NEVER logged. `_sanitize_error()` runs before `logger.error()`. BYOK logs only provider name.
 
-### Dependency Injection
+### Deferred Imports (Circular Import Pattern)
 
-FastAPI's `Depends(get_db)` for database sessions. `slowapi` limiter via `@limiter.limit()`. Test overrides via `app.dependency_overrides[get_db]`.
+`model_lists.py` uses deferred imports for `rebuild_openrouter_pricing` and `invalidate_provider_cache` to break the chain: `base.py → pricing.py → model_lists.py → providers/__init__.py`. Both imports are inside `refresh_openrouter_free_models()` with `# noqa: PLC0415`. This pattern is documented and intentional — do not move these imports to module level.
+
+### URL Normalization
+
+`db_utils.normalize_db_url()` — shared utility for `postgres://` → `postgresql+psycopg://`. Imported by both `database.py` (FastAPI) and `env.py` (Alembic). Zero application imports so both runtime contexts can import it safely (ADR-008).
 
 ### Async Patterns
 
@@ -81,29 +87,14 @@ FastAPI's `Depends(get_db)` for database sessions. `slowapi` limiter via `@limit
 
 ### React Patterns
 
-- **Lazy loading**: All 5 page components via `React.lazy()` + `<Suspense>`
-- **BYOK state**: Keys in React `useState`, never in localStorage or URL. `type="password"` for key inputs
-- **Dark mode**: CSS custom properties + `.dark` class toggle. Persisted in `localStorage`
-- **Responsive**: Desktop sidebar + mobile bottom tab bar. `useMediaQuery` hook, `cn()` utility
-
-### URL Normalization
-
-`db_utils.normalize_db_url()` — shared utility for `postgres://` → `postgresql+psycopg://`. Imported by both `database.py` (FastAPI) and `env.py` (Alembic). Zero application imports so both runtime contexts can import it safely.
+- Lazy loading: all 5 page components via `React.lazy()` + `<Suspense>`
+- BYOK state: keys in React `useState`, never in localStorage or URL. `type="password"` for key inputs
+- Dark mode: CSS custom properties + `.dark` class toggle. Persisted in `localStorage`
+- Responsive: Desktop sidebar + mobile bottom tab bar. `useMediaQuery` hook, `cn()` utility
 
 ## Commit Convention
 
-Commitizen conventional commits: `feat(scope):`, `fix(scope):`, `refactor(scope):`, `docs:`, `test:`, `chore:`. Footer: `Generated with Codebuff 🤖 Co-Authored-By: Codebuff <noreply@codebuff.com>`.
-
-## API Conventions
-
-| Rule | Detail |
-|------|--------|
-| URL prefix | `/api/` for all backend routes |
-| Response format | JSON (`response_model=` on all routes) |
-| Status codes | 200 (success), 204 (DELETE), 404 (not found), 422 (validation), 429 (rate limit) |
-| Error propagation | `error: string \| null` in result objects, never 500 for domain errors |
-| CORS | `allow_credentials=True`, methods `GET/POST/DELETE/OPTIONS`, origins from config |
-| Rate limiting | 60/min global, 10/min for POST /benchmarks |
+commitizen conventional commits: `feat(scope):`, `fix(scope):`, `refactor(scope):`, `docs:`, `test:`, `chore:`, `build:`. Footer: `Generated with Codebuff 🤖 Co-Authored-By: Codebuff <noreply@codebuff.com>`.
 
 ## Data Safety
 
@@ -115,4 +106,5 @@ Commitizen conventional commits: `feat(scope):`, `fix(scope):`, `refactor(scope)
 | Cache disabled for BYOK | `use_cache = req.cache and not client_key` per ADR-007 |
 | Database URL sanitized in logs | `_safe_url()` strips credentials |
 | Frontend keys never in storage | `useState`, `type="password"` |
-| Deferred import documented | `model_lists.py` comment explains cycle-breaking deferred import |
+| Deferred import documented | `model_lists.py` comment explains cycle-breaking deferred imports |
+| Alembic in main deps | Moved from dev → main (PR #11) — must be installable via `uv sync --no-dev` |

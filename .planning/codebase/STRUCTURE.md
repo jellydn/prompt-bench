@@ -1,158 +1,109 @@
 # Structure
 
-## Directory Layout
+## Repository Root
 
 ```
 prompt-bench/
-├── backend/                          # Python FastAPI application
-│   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main.py                   # FastAPI app creation, lifespan, CORS, routers
-│   │   ├── config.py                 # Pydantic Settings (.env loading)
-│   │   ├── database.py              # SQLAlchemy engine, SessionLocal, init_db()
-│   │   ├── db_utils.py              # Shared: normalize_db_url()
-│   │   ├── models.py                # ORM: Benchmark, BenchmarkResult
-│   │   ├── schemas.py               # Pydantic: BenchmarkCreate, BenchmarkOut, ResultOut
-│   │   ├── pricing.py               # PRICING dict, calculate_cost()
-│   │   ├── limiter.py               # slowapi rate limiter
-│   │   ├── session_keys.py          # SessionKeyStore (Phase 2 BYOK)
-│   │   ├── routers/
-│   │   │   ├── __init__.py
-│   │   │   ├── benchmarks.py        # POST/GET/DELETE /api/benchmarks
-│   │   │   ├── providers.py         # GET /api/providers
-│   │   │   ├── insights.py          # GET /api/insights
-│   │   │   ├── cache.py             # GET /api/cache/stats
-│   │   │   └── session_keys.py      # POST/DELETE /api/session-key
-│   │   ├── providers/
-│   │   │   ├── __init__.py          # PROVIDERS dict, get_provider()
-│   │   │   ├── base.py              # BaseProvider ABC, ModelInfo, ProviderResponse
-│   │   │   ├── common.py            # OpenAICompatibleProvider (shared SSE)
-│   │   │   ├── openai.py            # OpenAIProvider
-│   │   │   ├── anthropic.py         # AnthropicProvider (custom SSE)
-│   │   │   ├── gemini.py            # GeminiProvider (URL auth)
-│   │   │   ├── openrouter.py        # OpenRouterProvider
-│   │   │   ├── ollama.py            # OllamaProvider (local)
-│   │   │   ├── vllm.py              # VLLMProvider (local)
-│   │   │   └── model_lists.py       # Shared model lists, runtime refresh
-│   │   └── cache/
-│   │       ├── __init__.py
-│   │       ├── cache.py             # CacheBackend, RedisCache, InMemoryCache
-│   │       ├── response_cache.py    # ResponseCache + _KeyLockRegistry
-│   │       ├── embedding_cache.py   # EmbeddingCache
-│   │       └── keys.py              # response_cache_key(), embedding_cache_key()
+├── .dockerignore              # Docker build context exclusions (PR #13)
+├── .github/workflows/         # CI/CD (ci.yml, deploy.yml)
+├── .planning/codebase/        # Codemap docs (7 files)
+├── .freebuff/                 # Preview artifacts (gitignored)
+├── AGENTS.md                  # AI coding agent instructions
+├── QUICK_START.md             # Quick start guide
+├── README.md                  # Project documentation
+├── LICENSE                    # MIT
+├── docker-compose.yml         # Local full-stack (postgres, redis, backend, frontend)
+├── fly.toml                   # Fly.io deployment config
+├── justfile                   # Just task runner
+├── prek.toml                  # Prek config
+├── backend/
+│   ├── Dockerfile             # Multi-stage (frontend build + backend build)
+│   ├── pyproject.toml         # Dependencies (alembic in main deps since PR #11)
+│   ├── uv.lock                # Locked dependency tree
+│   ├── alembic.ini            # Alembic migration config
 │   ├── alembic/
-│   │   ├── env.py                   # Migration environment (imports db_utils)
-│   │   ├── alembic.ini
-│   │   ├── script.py.mako
+│   │   ├── env.py             # Migration environment (uses db_utils.normalize_db_url)
 │   │   └── versions/
 │   │       ├── 2dae871076fe_initial_schema.py
-│   │       └── 0002_add_cache_metrics.py  # Idempotent: inspector-based
-│   ├── tests/
-│   │   ├── conftest.py              # Test fixtures, DB setup, app factory
-│   │   ├── test_providers.py        # Pricing, BYOK auth header tests (3 providers)
-│   │   ├── test_benchmarks.py       # Benchmark CRUD, concurrency
-│   │   ├── test_cache.py            # Cache hit/miss, stampede prevention
-│   │   └── test_migrations.py       # Migration tests
-│   ├── pyproject.toml
-│   ├── uv.lock
-│   └── Dockerfile
-├── frontend/                         # React SPA
-│   ├── src/
-│   │   ├── main.tsx                 # React root + QueryClientProvider
-│   │   ├── App.tsx                  # Router, sidebar, bottom tabs, theme
-│   │   ├── index.css                # Tailwind + CSS custom properties
-│   │   ├── types/index.ts           # Shared TypeScript interfaces
-│   │   ├── lib/api.ts               # fetch wrapper, query keys, TanStack Query hooks
-│   │   ├── lib/utils.ts             # cn() utility
-│   │   ├── hooks/useMediaQuery.ts   # Responsive breakpoint
-│   │   ├── components/
-│   │   │   ├── ErrorBoundary.tsx
-│   │   │   ├── BenchmarkCacheSection.tsx  # Cache badges + latency chart
-│   │   │   └── ui/                  # shadcn/ui primitives
-│   │   └── pages/
-│   │       ├── BenchmarkRun.tsx      # Run page
-│   │       ├── BenchmarkResults.tsx  # Results page
-│   │       ├── CompareRuns.tsx       # Compare page
-│   │       ├── History.tsx           # History page
-│   │       └── Insights.tsx          # Insights page
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── vite.config.ts               # Vite config + API proxy
-│   ├── vitest.config.ts             # Vitest config
-│   ├── tailwind.config.js
-│   ├── postcss.config.js
-│   ├── eslint.config.js
-│   ├── index.html
-│   └── Dockerfile
-├── docker-compose.yml               # Full stack: postgres + redis + backend + frontend
-├── fly.toml                         # Fly.io deployment config
-├── prek.toml                        # Pre-commit hooks (TOML format)
-├── justfile                         # Task runner
-├── .github/workflows/
-│   ├── ci.yml                       # CI: ruff + pytest + tsc + vitest
-│   └── deploy.yml                   # Fly.io deploy on push to main
-├── .planning/codebase/              # Codemap documentation (7 files)
-├── docs/
-│   ├── caching.md                   # Cache architecture and usage guide
-│   └── adr/                         # Architecture Decision Records
-├── AGENTS.md                        # AI coding agent guide
-├── README.md
-├── QUICK_START.md
-└── LICENSE
+│   │       └── 0002_add_cache_metrics.py   # Idempotent cache columns
+│   ├── app/
+│   │   ├── main.py            # FastAPI app, lifespan, migrations, health check
+│   │   ├── config.py          # Pydantic settings (env vars)
+│   │   ├── database.py        # SQLAlchemy engine, session, Base
+│   │   ├── db_utils.py        # normalize_db_url() — zero-import shared utility (ADR-008)
+│   │   ├── models.py          # Benchmark + BenchmarkResult ORM models
+│   │   ├── schemas.py         # Pydantic request/response schemas
+│   │   ├── pricing.py         # PRICING dict, calculate_cost(), rebuild_openrouter_pricing()
+│   │   ├── limiter.py         # slowapi rate limiter
+│   │   ├── session_keys.py    # In-memory SessionKeyStore (30-min TTL)
+│   │   ├── routers/
+│   │   │   ├── benchmarks.py  # CRUD + run_one() + _sanitize_error()
+│   │   │   ├── providers.py   # GET /api/providers
+│   │   │   ├── insights.py    # GET /api/insights
+│   │   │   ├── cache.py       # Cache stats + clear
+│   │   │   └── session_keys.py # POST/DELETE /api/session-key (not routers/session_keys.py — check)
+│   │   ├── providers/
+│   │   │   ├── base.py        # BaseProvider ABC + ModelInfo dataclass
+│   │   │   ├── common.py      # OpenAICompatibleProvider (SSE parsing)
+│   │   │   ├── openai.py      # OpenAI provider
+│   │   │   ├── anthropic.py   # Anthropic provider (x-api-key, custom SSE)
+│   │   │   ├── gemini.py      # Gemini provider (URL query param auth)
+│   │   │   ├── openrouter.py  # OpenRouter (dynamic get_models(), PRICING rebuild)
+│   │   │   ├── ollama.py      # Ollama local
+│   │   │   ├── vllm.py        # vLLM provider
+│   │   │   ├── model_lists.py # Model lists, refresh_openrouter_free_models()
+│   │   │   └── __init__.py    # PROVIDERS registry
+│   │   └── cache/
+│   │       ├── __init__.py    # get_response_cache(), get_embedding_cache()
+│   │       ├── response_cache.py # Response cache key + storage
+│   │       ├── embedding_cache.py
+│   │       └── memory_cache.py  # In-memory fallback
+│   └── tests/
+│       ├── conftest.py        # SQLite fixture, FastAPI TestClient
+│       ├── test_providers.py  # 18 BYOK wire-level tests + pricing + SSE parsing
+│       ├── test_benchmarks.py # Benchmark API tests
+│       ├── test_migrations.py # Migration cycle + downgrade data preservation test
+│       └── test_cache.py      # Cache behavior tests
+└── frontend/
+    ├── Dockerfile
+    ├── package.json
+    ├── vite.config.ts         # Dev proxy /api → localhost:8000
+    ├── tsconfig.json
+    ├── tailwind.config.js
+    ├── index.html
+    └── src/
+        ├── main.tsx           # React entry point
+        ├── App.tsx            # Router + layout
+        ├── index.css          # Tailwind base + dark mode
+        ├── types/index.ts     # TypeScript interfaces
+        ├── hooks/useMediaQuery.ts
+        ├── lib/api.ts         # React Query hooks
+        ├── lib/utils.ts       # cn() utility
+        ├── components/
+        │   ├── ErrorBoundary.tsx
+        │   └── ui/            # shadcn/ui components (button, card, table, badge, etc.)
+        └── pages/
+            ├── BenchmarkRun.tsx
+            ├── BenchmarkResults.tsx
+            ├── History.tsx
+            ├── CompareRuns.tsx
+            └── Insights.tsx
 ```
 
 ## Key Locations
 
-| Component | Path |
-|-----------|------|
-| App entry point | `backend/app/main.py` |
-| Settings | `backend/app/config.py` |
-| DB config | `backend/app/database.py` |
-| DB utils | `backend/app/db_utils.py` |
-| Provider registration | `backend/app/providers/__init__.py` |
-| Model lists | `backend/app/providers/model_lists.py` |
-| Pricing | `backend/app/pricing.py` |
-| Cache | `backend/app/cache/` |
-| Migrations | `backend/alembic/` |
-| Frontend API client | `frontend/src/lib/api.ts` |
-| Frontend router | `frontend/src/App.tsx` |
-| CI config | `.github/workflows/ci.yml` |
-
-## Naming Conventions
-
-| Context | Pattern | Examples |
-|---------|---------|----------|
-| Provider IDs | lowercase, no spaces | `"openai"`, `"gemini"` |
-| Model IDs | lowercase with hyphens | `"gpt-4.1"`, `"claude-sonnet-5"` |
-| DB columns | snake_case | `cache_hit`, `total_latency_ms` |
-| API endpoints | kebab-case | `/api/session-key`, `/api/cache/stats` |
-| React components | PascalCase files | `BenchmarkCacheSection.tsx` |
-| Test files | `test_*.py` | `test_providers.py` |
-| Test classes/functions | `Test*` / `test_*` | `TestBYOKAuthHeader` |
-| Python modules | snake_case | `db_utils.py`, `model_lists.py` |
-
-## Routes (Frontend)
-
-| Path | Component | Lazy Loaded |
-|------|-----------|-------------|
-| `/` | `BenchmarkRun` | ✓ |
-| `/compare` | `CompareRuns` | ✓ |
-| `/history` | `History` | ✓ |
-| `/insights` | `Insights` | ✓ |
-| `/results/:id` | `BenchmarkResults` | ✓ |
-
-## API Routes
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/api/health` | Health check |
-| GET | `/api/providers` | List providers + models |
-| POST | `/api/benchmarks` | Create benchmark |
-| GET | `/api/benchmarks` | List history |
-| GET | `/api/benchmarks/{id}` | Get benchmark + results |
-| DELETE | `/api/benchmarks/{id}` | Delete benchmark |
-| GET | `/api/insights` | Aggregate statistics |
-| GET | `/api/cache/stats` | Cache statistics |
-| POST | `/api/session-key` | Save BYOK session key |
-| DELETE | `/api/session-key` | Clear BYOK session keys |
-| GET | `/api/session-key/providers` | List providers with saved keys |
+| What | Where |
+|------|-------|
+| Entry point | `backend/app/main.py` (FastAPI), `frontend/src/main.tsx` (React) |
+| Database models | `backend/app/models.py` |
+| API endpoints | `backend/app/routers/*.py` |
+| AI providers | `backend/app/providers/*.py` |
+| Cache logic | `backend/app/cache/*.py` |
+| Migrations | `backend/alembic/versions/*.py` |
+| BYOK tests | `backend/tests/test_providers.py` (3 classes, 18 tests) |
+| Downgrade test | `backend/tests/test_migrations.py::test_downgrade_preserves_non_cache_data` |
+| Dependencies | `backend/pyproject.toml`, `frontend/package.json` |
+| Docker build | `backend/Dockerfile`, `.dockerignore` |
+| Dev server | `frontend/` (Vite :5173), `backend/` (Uvicorn :8000) |
+| Codemap | `.planning/codebase/` (7 .md files) |
+| ADRs | `docs/adr/` (10 records: 001–010) |
