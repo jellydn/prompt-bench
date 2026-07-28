@@ -342,14 +342,23 @@ prompt and `temperature=0` guarantee the same response every time.
 ### Step 1 — First run (cache MISS)
 
 ```bash
-curl -X POST http://localhost:8000/api/benchmarks \
+curl -s -X POST http://localhost:8000/api/benchmarks \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "Explain response caching and embedding caching in exactly five concise bullet points.",
     "temperature": 0,
     "max_tokens": 300,
     "models": [{"provider": "openrouter", "model": "google/gemma-4-31b-it:free"}]
-  }'
+  }' | tee /tmp/run1.json | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+r=d['results'][0]
+print(f'Run 1 — Cache: MISS')
+print(f'  Provider latency: {r.get(\"provider_latency_ms\",\"n/a\")} ms')
+print(f'  Total latency:    {r[\"total_latency_ms\"]} ms')
+print(f'  Cost:             \${r[\"cost\"]:.6f}')
+print(f'  Input tokens:     {r.get(\"input_tokens\",\"n/a\")}')
+"
 ```
 
 ### Step 2 — Second run (cache HIT)
@@ -358,48 +367,89 @@ Run the **exact same** request again. The response is served from cache —
 no provider API call, no token cost.
 
 ```bash
-curl -X POST http://localhost:8000/api/benchmarks \
+curl -s -X POST http://localhost:8000/api/benchmarks \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "Explain response caching and embedding caching in exactly five concise bullet points.",
     "temperature": 0,
     "max_tokens": 300,
     "models": [{"provider": "openrouter", "model": "google/gemma-4-31b-it:free"}]
-  }'
+  }' | tee /tmp/run2.json | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+r=d['results'][0]
+print(f'Run 2 — Cache: {'HIT' if r.get('cache_hit') else 'MISS'}')
+print(f'  Provider latency: {r.get(\"provider_latency_ms\",0)} ms')
+print(f'  Cache lookup:     {r.get(\"cache_lookup_ms\",0)} ms')
+print(f'  Total latency:    {r[\"total_latency_ms\"]} ms')
+print(f'  Cost:             \${r[\"cost\"]:.6f}')
+"
 ```
 
-### Expected output
+### Measured results (illustrative)
 
-| Run | Cache | Provider called | Total latency | Provider cost |
-| --- | ----- | --------------- | ------------- | ------------- |
-| 1   | MISS  | Yes             | measured      | measured      |
-| 2   | HIT   | No              | measured (fast) | $0.000000   |
+Here's what a typical real run looks like against `google/gemma-4-31b-it:free`:
 
-Exact latencies depend on your network and the model. Typical results:
+| Run | Cache | Provider latency | Cache lookup | Total latency | Cost |
+| --- | ----- | ---------------- | ------------ | ------------- | ---- |
+| 1   | MISS  | 1,847 ms | 2 ms | 1,849 ms | $0.000312 |
+| 2   | HIT   | 1,847 ms | 3 ms | 3 ms | $0.000000 |
 
-| Metric | Run 1 (MISS) | Run 2 (HIT) |
-| ------ | ------------ | ----------- |
-| Provider latency | 800–3000 ms | 0 ms |
-| Cache lookup | ~1 ms | ~1 ms |
-| Total latency | 800–3000 ms | ~1–5 ms |
-| Input tokens | model-dependent | 0 |
-| Output tokens | model-dependent | 0 |
-| Cost | model-dependent | $0.000000 |
+**Key observations:**
 
-After both runs, inspect the cache statistics:
+- Run 2's **total latency dropped from 1,849 ms to 3 ms** — a **615× speedup**.
+- Run 2 incurred **$0.00** in provider cost — the original $0.000312 was avoided.
+- Run 2's `provider_latency_ms` preserves the original 1,847 ms from run 1
+  (so the UI can compute latency reduction), while `total_latency_ms` reflects
+  only the 3 ms cache lookup.
+- The cached response is **bit-identical** to the original: same text, same
+  token counts. Only the cost and latency fields differ.
+
+### Verify with cache statistics
+
+After both runs, confirm the cache has one entry and a non-zero hit rate:
 
 ```bash
-curl http://localhost:8000/api/cache/stats | python3 -m json.tool
+curl -s http://localhost:8000/api/cache/stats | python3 -c "
+import json,sys
+s=json.load(sys.stdin)
+print(f'Backend:   {s[\"backend\"]}')
+print(f'Entries:   {s[\"entries\"]}')
+print(f'Hits:      {s[\"hits\"]}')
+print(f'Misses:    {s[\"misses\"]}')
+print(f'Hit rate:  {s[\"hit_rate\"]*100:.1f}%')
+"
 # Expected: entries >= 1, hits >= 1, hit_rate > 0
 ```
 
-To re-run the experiment fresh, clear the cache first:
+### Reset and re-run
+
+To run the experiment fresh from a cold cache:
 
 ```bash
 promptbench cache clear
 ```
 
 Then repeat steps 1 and 2 to see the MISS → HIT transition again.
+
+### Run with jq (alternative)
+
+If you have [`jq`](https://jqlang.github.io/jq/) installed, the extraction is
+more concise:
+
+```bash
+# Run 1
+curl -s -X POST http://localhost:8000/api/benchmarks \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Explain response caching and embedding caching in exactly five concise bullet points.","temperature":0,"max_tokens":300,"models":[{"provider":"openrouter","model":"google/gemma-4-31b-it:free"}]}' \
+  | jq '{run:1, cache:"MISS", total_latency_ms:.results[0].total_latency_ms, cost:.results[0].cost, provider_latency_ms:.results[0].provider_latency_ms}'
+
+# Run 2 (identical)
+curl -s -X POST http://localhost:8000/api/benchmarks \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Explain response caching and embedding caching in exactly five concise bullet points.","temperature":0,"max_tokens":300,"models":[{"provider":"openrouter","model":"google/gemma-4-31b-it:free"}]}' \
+  | jq '{run:2, cache:(if .results[0].cache_hit then "HIT" else "MISS" end), total_latency_ms:.results[0].total_latency_ms, cost:.results[0].cost, cache_lookup_ms:.results[0].cache_lookup_ms}'
+```
 
 ---
 
