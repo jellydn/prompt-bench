@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     vllm_base_url: str = "http://localhost:8001"
     cors_origins: list[str] = ["http://localhost:5173", "https://prompt-bench.fly.dev"]
 
+    # ── Local providers (vLLM, Ollama) ─────────────────────────────────
+    # Set to False in production (Fly.io) to hide providers that need
+    # a locally-running inference server.
+    enable_local_providers: bool = True
+
     # ── Cache (Redis with in-memory fallback) ───────────────────────────
     # Set REDIS_URL to enable Redis; leave empty to use the in-memory backend.
     redis_url: str = ""

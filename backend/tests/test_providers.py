@@ -712,3 +712,47 @@ class TestSSEParsing:
                     if c:
                         parts.append(c)
         assert "".join(parts) == "Hello world"
+
+
+class TestLocalProvidersConfigured:
+    """vLLM and Ollama must respect enable_local_providers."""
+
+    def test_vllm_not_configured_when_local_providers_disabled(self):
+        from app.providers.vllm import VLLMProvider  # noqa: PLC0415
+
+        provider = VLLMProvider()
+        with patch(
+            "app.providers.vllm.get_settings",
+            return_value=Mock(enable_local_providers=False),
+        ):
+            assert provider.is_configured is False
+
+    def test_vllm_configured_when_local_providers_enabled(self):
+        from app.providers.vllm import VLLMProvider  # noqa: PLC0415
+
+        provider = VLLMProvider()
+        with patch(
+            "app.providers.vllm.get_settings",
+            return_value=Mock(enable_local_providers=True),
+        ):
+            assert provider.is_configured is True
+
+    def test_ollama_not_configured_when_local_providers_disabled(self):
+        from app.providers.ollama import OllamaProvider  # noqa: PLC0415
+
+        provider = OllamaProvider()
+        with patch(
+            "app.providers.ollama.settings",
+            Mock(enable_local_providers=False),
+        ):
+            assert provider.is_configured is False
+
+    def test_ollama_configured_when_local_providers_enabled(self):
+        from app.providers.ollama import OllamaProvider  # noqa: PLC0415
+
+        provider = OllamaProvider()
+        with patch(
+            "app.providers.ollama.settings",
+            Mock(enable_local_providers=True),
+        ):
+            assert provider.is_configured is True

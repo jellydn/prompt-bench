@@ -17,8 +17,9 @@ class OllamaProvider(BaseProvider):
     model_names = {m: m for m in OLLAMA_MODELS}
 
     @property
-    def is_configured(self):
-        return True
+    def is_configured(self) -> bool:
+        """Ollama is only available when local providers are enabled."""
+        return settings.enable_local_providers
 
     async def generate(self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000):
         messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + [
