@@ -64,7 +64,7 @@ Open http://localhost:5173 in your browser to access:
 
 ## 🔑 Adding API Keys
 
-To enable actual AI model testing, add your API keys:
+**Option 1 — Server-side (.env):**
 
 ```bash
 # Edit the .env file
@@ -78,6 +78,8 @@ OPENROUTER_API_KEY=sk-or-v1-...
 ```
 
 The backend automatically reloads when you save the file!
+
+**Option 2 — Browser (BYOK):** Open http://localhost:5173 and enter your key directly in the provider card on the Run Benchmark page. Your key is never stored — it stays in memory for that single request and is cleared when you close the tab. See the [BYOK section](README.md#bring-your-own-key-byok) in the README for privacy details.
 
 ### Get API Keys
 - **OpenRouter** (free models): https://openrouter.ai/keys

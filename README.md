@@ -30,6 +30,60 @@
 
 OpenAI · Anthropic · Google Gemini · OpenRouter · Ollama · vLLM
 
+> **Don't have API keys?** Use [OpenRouter's free models](#testing-with-openrouter-free-models) — zero-cost inference, no credit card required.
+>
+> **Have your own keys?** See [Bring Your Own Key](#bring-your-own-key-byok) — enter your keys directly in the browser. They are never stored, never logged, and cleared when you close the tab.
+
+## Bring Your Own Key (BYOK)
+
+You can benchmark against OpenAI, Anthropic, Gemini, or OpenRouter by entering your own API key directly in the browser — no server-side configuration needed.
+
+### How it works
+
+1. Open the Run Benchmark page
+2. Find a provider card marked "API key not set"
+3. Enter your key in the password input (eye icon toggles visibility)
+4. Select models and run your benchmark as usual
+
+Your key is sent with that single benchmark request and immediately discarded. It is **never**:
+
+- Stored in a database
+- Written to a log file
+- Saved to localStorage or sessionStorage
+- Included in error messages returned to the browser
+- Shared between concurrent requests
+
+### Privacy
+
+| Invariant | How |
+|---|---|
+| Keys never persisted | Transient Python attribute, no ORM column |
+| Keys never cached | BYOK results skip the response cache |
+| Keys never logged | Only the provider name is logged at debug level |
+| Keys never in errors | Provider error messages are sanitized before returning |
+| Keys never in browser storage | React `useState` only — cleared on tab close |
+
+### Provider-specific notes
+
+- **Gemini**: The Gemini API passes the key as a URL query parameter. This means it may appear in Google's server access logs — a limitation of the Gemini API itself, not PromptBench. BYOK is still fully supported, but be aware of this provider behavior.
+- **Ollama / vLLM**: Local providers are always "Configured" and do not show a BYOK input — they don't use API keys.
+
+### API
+
+Include `client_keys` in your `POST /api/benchmarks` request:
+
+```json
+{
+  "prompt": "Explain quantum computing",
+  "models": [{"provider": "openai", "model": "gpt-4o-mini"}],
+  "client_keys": {
+    "openai": "sk-proj-..."
+  }
+}
+```
+
+The `client_keys` field is optional, scoped per-provider, and honored only for the providers you specify. Providers not listed in `client_keys` fall back to server-configured keys.
+
 ## Tech Stack
 
 | Layer    | Technologies                                                      |
@@ -155,7 +209,7 @@ curl -X POST http://localhost:8000/api/benchmarks -H 'Content-Type: application/
 | Method | Endpoint               | Description                 |
 | ------ | ---------------------- | --------------------------- |
 | GET    | `/api/providers`       | List providers and models   |
-| POST   | `/api/benchmarks`      | Run a benchmark             |
+| POST   | `/api/benchmarks`      | Run a benchmark (supports `client_keys` for BYOK) |
 | GET    | `/api/benchmarks`      | List benchmark history      |
 | GET    | `/api/benchmarks/{id}` | Get a single benchmark      |
 | DELETE | `/api/benchmarks/{id}` | Delete a benchmark          |
