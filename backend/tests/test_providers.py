@@ -8,6 +8,7 @@ import pytest
 
 from app.pricing import PRICING, calculate_cost
 from app.providers import PROVIDERS
+from app.providers.anthropic import AnthropicProvider
 from app.providers.base import ProviderResponse
 from app.providers.openai import OpenAIProvider
 
@@ -208,6 +209,156 @@ class TestBYOKAuthHeader:
         auth = captured.get("headers", {}).get("authorization", "")
         assert auth == "Bearer sk-byok-wins", (
             f"Expected BYOK key to take priority, got: {auth}"
+        )
+
+
+class TestBYOKAnthropicAuthHeader:
+    """Verify BYOK keys reach Anthropic's API.
+
+    AnthropicProvider has its own generate() method (not OpenAICompatibleProvider)
+    and uses the x-api-key header / a different SSE format.  These tests mirror
+    TestBYOKAuthHeader but for the Anthropic-specific code path.
+    """
+
+    # Minimal valid Anthropic SSE stream.
+    _sse_body = (
+        'data: {"type":"message_start","message":{"usage":{"input_tokens":1}}}\n\n'
+        'data: {"type":"content_block_delta","delta":{"text":"ok"}}\n\n'
+        'data: {"type":"message_delta","usage":{"output_tokens":1}}\n\n'
+    )
+
+    @staticmethod
+    def _capture_transport(captured: dict):
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured["headers"] = dict(request.headers)
+            captured["body"] = request.content
+            return httpx.Response(200, text=TestBYOKAnthropicAuthHeader._sse_body)
+        return httpx.MockTransport(handler)
+
+    @staticmethod
+    def _patched_client(captured: dict):
+        class _PC(httpx.AsyncClient):
+            def __init__(self, *a, **kw):  # noqa: PLW0642
+                kw["transport"] = TestBYOKAnthropicAuthHeader._capture_transport(captured)
+                super().__init__(*a, **kw)
+        return _PC
+
+    @staticmethod
+    def _mock_settings(**kw):
+        return Mock(**kw)
+
+    @pytest.mark.asyncio
+    async def test_byok_key_used_in_x_api_key_header(self):
+        """When _client_api_key is set, it MUST appear in x-api-key header."""
+        provider = AnthropicProvider()
+        provider._client_api_key = "sk-ant-byok-test-key"
+
+        captured: dict = {}
+
+        with patch(
+            "app.providers.anthropic.httpx.AsyncClient",
+            self._patched_client(captured),
+        ):
+            result = await provider.generate(
+                prompt="test",
+                model="claude-3-5-haiku-20241022",
+                temperature=0,
+                max_tokens=10,
+            )
+
+        assert result.response_text == "ok"
+        key = captured.get("headers", {}).get("x-api-key", "")
+        assert key == "sk-ant-byok-test-key", (
+            f"Expected BYOK key in x-api-key header, got: {key}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_server_key_fallback_when_no_byok(self):
+        """When _client_api_key is NOT set, the server's anthropic_api_key is used."""
+        provider = AnthropicProvider()
+        provider._client_api_key = None
+
+        captured: dict = {}
+
+        with patch(
+            "app.providers.anthropic.httpx.AsyncClient",
+            self._patched_client(captured),
+        ):
+            with patch(
+                "app.providers.anthropic.get_settings",
+                return_value=self._mock_settings(anthropic_api_key="sk-ant-server-key"),
+            ):
+                result = await provider.generate(
+                    prompt="test",
+                    model="claude-3-5-haiku-20241022",
+                    temperature=0,
+                    max_tokens=10,
+                )
+
+        assert result.response_text == "ok"
+        key = captured.get("headers", {}).get("x-api-key", "")
+        assert key == "sk-ant-server-key", (
+            f"Expected server key fallback in x-api-key header, got: {key}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_no_x_api_key_when_no_key(self):
+        """When neither client nor server key is set, no x-api-key header is sent."""
+        provider = AnthropicProvider()
+        provider._client_api_key = None
+
+        captured: dict = {}
+
+        with patch(
+            "app.providers.anthropic.httpx.AsyncClient",
+            self._patched_client(captured),
+        ):
+            with patch(
+                "app.providers.anthropic.get_settings",
+                return_value=self._mock_settings(anthropic_api_key=""),
+            ):
+                result = await provider.generate(
+                    prompt="test",
+                    model="claude-3-5-haiku-20241022",
+                    temperature=0,
+                    max_tokens=10,
+                )
+
+        assert result.response_text == "ok"
+        key = captured.get("headers", {}).get("x-api-key")
+        assert key is None, (
+            f"Expected NO x-api-key header when no key is configured, got: {key}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_byok_priority_over_server_key(self):
+        """When BOTH keys are set, BYOK key MUST take priority over server key."""
+        provider = AnthropicProvider()
+        provider._client_api_key = "sk-ant-byok-wins"
+
+        captured: dict = {}
+
+        with patch(
+            "app.providers.anthropic.httpx.AsyncClient",
+            self._patched_client(captured),
+        ):
+            with patch(
+                "app.providers.anthropic.get_settings",
+                return_value=self._mock_settings(
+                    anthropic_api_key="sk-ant-should-not-appear"
+                ),
+            ):
+                result = await provider.generate(
+                    prompt="test",
+                    model="claude-3-5-haiku-20241022",
+                    temperature=0,
+                    max_tokens=10,
+                )
+
+        assert result.response_text == "ok"
+        key = captured.get("headers", {}).get("x-api-key", "")
+        assert key == "sk-ant-byok-wins", (
+            f"Expected BYOK key to take priority in x-api-key header, got: {key}"
         )
 
 
