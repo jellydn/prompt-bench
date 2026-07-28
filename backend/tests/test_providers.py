@@ -1,6 +1,7 @@
 """Tests for provider error handling and edge cases."""
 
 import json as j
+from unittest.mock import Mock, patch
 
 import httpx
 import pytest
@@ -8,6 +9,7 @@ import pytest
 from app.pricing import PRICING, calculate_cost
 from app.providers import PROVIDERS
 from app.providers.base import ProviderResponse
+from app.providers.openai import OpenAIProvider
 
 
 class TestProviderResponse:
@@ -50,6 +52,163 @@ class TestPricing:
     def test_all_providers_have_pricing(self):
         for pid in PROVIDERS:
             assert pid in PRICING, f"No pricing entry for {pid}"
+
+
+class TestBYOKAuthHeader:
+    """BYOK keys must actually reach the upstream provider's Authorization header.
+
+    PR #7 included a critical bug where BYOK keys were injected into the provider
+    instance but common.py's generate() only read self.api_key (the server key),
+    silently discarding the client key.  These tests verify the fix.
+    """
+
+    # Minimal valid SSE stream so generate() completes without raising.
+    _sse_body = (
+        'data: {"choices":[{"delta":{"content":"ok"}}],'
+        '"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n'
+        "data: [DONE]\n\n"
+    )
+
+    @staticmethod
+    def _capture_transport(captured: dict):
+        """Return an httpx.MockTransport that writes request headers into *captured*."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured["headers"] = dict(request.headers)
+            captured["body"] = request.content
+            return httpx.Response(200, text=TestBYOKAuthHeader._sse_body)
+
+        return httpx.MockTransport(handler)
+
+    @staticmethod
+    def _patched_client(captured: dict):
+        """Return an AsyncClient subclass that injects our capture transport."""
+
+        class _PC(httpx.AsyncClient):
+            def __init__(self, *a, **kw):  # noqa: PLW0642
+                kw["transport"] = TestBYOKAuthHeader._capture_transport(captured)
+                super().__init__(*a, **kw)
+
+        return _PC
+
+    @staticmethod
+    def _mock_settings(**kw):
+        """Return a mock Settings object with the given attributes."""
+        return Mock(**kw)
+
+    @pytest.mark.asyncio
+    async def test_byok_key_used_in_auth_header(self):
+        """When _client_api_key is set, it MUST appear in the Authorization header."""
+        provider = OpenAIProvider()
+        provider._client_api_key = "sk-byok-test-key-12345"
+
+        captured: dict = {}
+
+        with patch(
+            "app.providers.common.httpx.AsyncClient",
+            self._patched_client(captured),
+        ):
+            result = await provider.generate(
+                prompt="test",
+                model="gpt-4o-mini",
+                temperature=0,
+                max_tokens=10,
+            )
+
+        assert result.response_text == "ok"
+        auth = captured.get("headers", {}).get("authorization", "")
+        assert auth == "Bearer sk-byok-test-key-12345", (
+            f"Expected BYOK key in Authorization header, got: {auth}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_server_key_fallback_when_no_byok(self):
+        """When _client_api_key is NOT set, self.api_key (server key) is used."""
+        provider = OpenAIProvider()
+        provider._client_api_key = None  # explicitly no BYOK
+
+        captured: dict = {}
+
+        with patch(
+            "app.providers.common.httpx.AsyncClient",
+            self._patched_client(captured),
+        ):
+            with patch(
+                "app.providers.openai.get_settings",
+                return_value=self._mock_settings(openai_api_key="sk-server-key-67890"),
+            ):
+                result = await provider.generate(
+                    prompt="test",
+                    model="gpt-4o-mini",
+                    temperature=0,
+                    max_tokens=10,
+                )
+
+        assert result.response_text == "ok"
+        auth = captured.get("headers", {}).get("authorization", "")
+        assert auth == "Bearer sk-server-key-67890", (
+            f"Expected server key fallback in Authorization header, got: {auth}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_no_auth_header_when_no_key(self):
+        """When neither client nor server key is set, no Authorization header is sent."""
+        provider = OpenAIProvider()
+        provider._client_api_key = None
+
+        captured: dict = {}
+
+        with patch(
+            "app.providers.common.httpx.AsyncClient",
+            self._patched_client(captured),
+        ):
+            with patch(
+                "app.providers.openai.get_settings",
+                return_value=self._mock_settings(openai_api_key=""),
+            ):
+                result = await provider.generate(
+                    prompt="test",
+                    model="gpt-4o-mini",
+                    temperature=0,
+                    max_tokens=10,
+                )
+
+        assert result.response_text == "ok"
+        auth = captured.get("headers", {}).get("authorization")
+        assert auth is None, (
+            f"Expected NO Authorization header when no key is configured, got: {auth}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_byok_priority_over_server_key(self):
+        """When BOTH keys are set, BYOK key MUST take priority over server key."""
+        provider = OpenAIProvider()
+        provider._client_api_key = "sk-byok-wins"
+
+        captured: dict = {}
+
+        with patch(
+            "app.providers.common.httpx.AsyncClient",
+            self._patched_client(captured),
+        ):
+            with patch(
+                "app.providers.openai.get_settings",
+                return_value=self._mock_settings(
+                    openai_api_key="sk-server-key-should-not-appear"
+                ),
+            ):
+                result = await provider.generate(
+                    prompt="test",
+                    model="gpt-4o-mini",
+                    temperature=0,
+                    max_tokens=10,
+                )
+
+        assert result.response_text == "ok"
+        auth = captured.get("headers", {}).get("authorization", "")
+        assert auth == "Bearer sk-byok-wins", (
+            f"Expected BYOK key to take priority, got: {auth}"
+        )
 
 
 class TestSSEParsing:
