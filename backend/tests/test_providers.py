@@ -413,6 +413,57 @@ class TestBYOKAnthropicAuthHeader:
             f"Expected BYOK key to take priority in x-api-key header, got: {key}"
         )
 
+    @pytest.mark.asyncio
+    async def test_byok_key_across_multi_chunk_stream(self):
+        """BYOK key persists across full Anthropic SSE stream: 3 deltas + framing events."""
+        provider = AnthropicProvider()
+        provider._client_api_key = "sk-ant-byok-stream-key"
+
+        captured: dict = {}
+
+        # message_start → 3 deltas → message_delta (Anthropic has no [DONE] signal).
+        body = (
+            'data: {"type":"message_start","message":{"usage":{"input_tokens":10}}}\n\n'
+            'data: {"type":"content_block_delta","delta":{"text":"Hello"}}\n\n'
+            'data: {"type":"content_block_delta","delta":{"text":" "}}\n\n'
+            'data: {"type":"content_block_delta","delta":{"text":"world"}}\n\n'
+            'data: {"type":"message_delta","usage":{"output_tokens":3}}\n\n'
+        )
+
+        def _multi_handler(request: httpx.Request) -> httpx.Response:
+            captured["headers"] = dict(request.headers)
+            return httpx.Response(200, text=body)
+
+        class _MultiPC(httpx.AsyncClient):
+            def __init__(self, *a, **kw):  # noqa: PLW0642
+                kw["transport"] = httpx.MockTransport(_multi_handler)
+                super().__init__(*a, **kw)
+
+        with patch("app.providers.anthropic.httpx.AsyncClient", _MultiPC):
+            result = await provider.generate(
+                prompt="test",
+                model="claude-3-5-haiku-20241022",
+                temperature=0,
+                max_tokens=10,
+            )
+
+        # All 3 chunks accumulated.
+        assert result.response_text == "Hello world", (
+            f"Expected concatenated chunks, got: {result.response_text!r}"
+        )
+        assert result.input_tokens == 10
+        assert result.output_tokens == 3
+        assert result.response_chars == 11
+        assert result.cost > 0  # claude-3-5-haiku pricing
+        assert result.ttft_ms >= 0
+        assert result.total_latency_ms >= 0
+
+        # BYOK key is in the single request captured by the mock.
+        key = captured.get("headers", {}).get("x-api-key", "")
+        assert key == "sk-ant-byok-stream-key", (
+            f"Expected BYOK key in multi-chunk x-api-key header, got: {key}"
+        )
+
 
 class TestSSEParsing:
     """Provider SSE JSON parsing edge cases."""
