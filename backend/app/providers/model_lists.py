@@ -106,7 +106,12 @@ async def refresh_openrouter_free_models() -> None:
     OPENROUTER_FREE_MODELS.clear()
     OPENROUTER_FREE_MODELS.extend(free_models)
     _last_refresh = now
-    # Invalidate the provider cache so refreshed models appear immediately
+    # Invalidate the provider cache so refreshed models appear immediately.
+    #
+    # NOTE: this import is intentionally deferred (not at module level) to
+    # break a potential circular import chain:
+    #   base.py → pricing.py → model_lists.py → providers/__init__.py → …
+    # Moving it to module level would create an import cycle.
     from . import invalidate_provider_cache  # noqa: PLC0415
 
     invalidate_provider_cache()

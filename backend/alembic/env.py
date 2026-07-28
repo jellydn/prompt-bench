@@ -15,6 +15,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Import the model Base without triggering app.database engine creation
+from app.db_utils import normalize_db_url  # noqa: E402
 from app.models import Base  # noqa: E402
 
 target_metadata = Base.metadata
@@ -28,12 +29,7 @@ def get_url() -> str:
     """
     url = os.environ.get("DATABASE_URL") or os.environ.get("ALEMBIC_TEST_URL")
     if url:
-        # Normalize postgres:// driver prefix for psycopg v3 (same as app.database)
-        if url.startswith("postgres://") and "+psycopg" not in url:
-            url = url.replace("postgres://", "postgresql+psycopg://", 1)
-        elif url.startswith("postgresql://") and "+psycopg" not in url:
-            url = url.replace("postgresql://", "postgresql+psycopg://", 1)
-        return url
+        return normalize_db_url(url)
     return config.get_main_option("sqlalchemy.url")
 
 

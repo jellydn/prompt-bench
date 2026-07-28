@@ -5,6 +5,7 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import NullPool, QueuePool
 
 from .config import settings
+from .db_utils import normalize_db_url
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +23,7 @@ class Base(DeclarativeBase):
     pass
 
 
-_engine_url = settings.database_url
-# Normalize postgresql:// → postgresql+psycopg:// for psycopg v3 driver support
-# Also handle postgres:// (used by some providers like Fly.io)
-if _engine_url.startswith("postgres://") and "+psycopg" not in _engine_url:
-    _engine_url = _engine_url.replace("postgres://", "postgresql+psycopg://", 1)
-elif _engine_url.startswith("postgresql://") and "+psycopg" not in _engine_url:
-    _engine_url = _engine_url.replace("postgresql://", "postgresql+psycopg://", 1)
+_engine_url = normalize_db_url(settings.database_url)
 
 if _engine_url.startswith("sqlite"):
     logger.warning(_SQLITE_WARNING)
