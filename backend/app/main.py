@@ -30,39 +30,52 @@ def _run_alembic_migrations() -> None:
     ``init_db()`` runs first and creates tables with the full current
     schema.  This function then:
 
-    1. Stamps the initial migration (2dae871076fe) so Alembic knows
-       the baseline tables already exist.
+    1. Checks whether ``alembic_version`` already exists.  If not, it
+       stamps the initial migration (2dae871076fe) so Alembic knows
+       the baseline tables already exist — a one-time bootstrap step.
     2. Runs ``upgrade head`` to apply any migrations that ``init_db``
        could not handle (e.g. ALTER TABLE on an existing create_all
        database where columns were missing).
 
-    On a fresh database the migration may fail with "column already
-    exists" because ``init_db`` already created everything — that
-    warning is harmless and expected.
+    The stamp check is important: re-stamping on every startup would
+    overwrite the migration state and force re-execution of already-
+    applied migrations.
     """
     try:
         db_url = str(settings.database_url)
         env = {**os.environ, "DATABASE_URL": db_url}
 
-        # Stamp the initial migration so Alembic knows the baseline.
-        stamp = subprocess.run(
-            ["alembic", "stamp", "2dae871076fe"],
+        # One-time bootstrap: if alembic_version does not exist yet, mark
+        # the initial migration as done.  After the first successful run
+        # we never stamp again — only upgrade.
+        alembic_current = subprocess.run(
+            ["alembic", "current"],
             env=env,
             capture_output=True,
             text=True,
             timeout=30,
             check=False,
         )
-        if stamp.returncode == 0:
-            logger.info("Alembic baseline stamped")
-        else:
-            logger.warning(
-                "Alembic stamp warning: %s",
-                stamp.stderr.strip(),
-            )
+        need_stamp = alembic_current.returncode != 0 or not alembic_current.stdout.strip()
 
-        # Apply any incremental migrations (e.g. cache columns on an
-        # existing create_all database that was missing them).
+        if need_stamp:
+            stamp = subprocess.run(
+                ["alembic", "stamp", "2dae871076fe"],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            if stamp.returncode == 0:
+                logger.info("Alembic baseline stamped (first run)")
+            else:
+                logger.warning(
+                    "Alembic stamp warning: %s",
+                    stamp.stderr.strip(),
+                )
+
+        # Apply any incremental migrations.
         result = subprocess.run(
             ["alembic", "upgrade", "head"],
             env=env,
@@ -74,13 +87,10 @@ def _run_alembic_migrations() -> None:
         if result.returncode == 0:
             logger.info("Database migrations applied successfully")
             return
-        # On a fresh DB where init_db() already created everything, the
-        # migration may fail with "column already exists".  That is fine.
+        # Defensive: surface common failure patterns clearly.
         stderr_lower = result.stderr.lower()
         if "already exists" in stderr_lower:
-            logger.info(
-                "Alembic upgrade skipped — schema already up to date"
-            )
+            logger.info("Alembic upgrade skipped — schema already up to date")
             return
         logger.warning(
             "Alembic upgrade failed (rc=%d): %s",

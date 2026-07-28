@@ -52,8 +52,9 @@ class BaseProvider(ABC):
         custom lookup logic (e.g. OpenRouter with runtime-refreshed lists)
         can override.
         """
+        provider_pricing = PRICING.get(self.provider_id, {})
         return [
-            ModelInfo(k, v, PRICING[self.provider_id][k])
+            ModelInfo(k, v, provider_pricing.get(k, {"input": 0.0, "output": 0.0}))
             for k, v in self.model_names.items()
         ]
 

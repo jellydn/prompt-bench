@@ -4,14 +4,14 @@ Revision ID: 0002_cache_metrics
 Revises: 2dae871076fe
 Create Date: 2026-07-27 00:00:00.000000
 
-The migration is idempotent: each column is added in its own transaction
-wrapped in try/except so it safely passes on a fresh database where
-init_db() already created the columns via create_all().
+The migration is idempotent: each column is checked for existence
+via SQLAlchemy inspector before attempting to add it.  This avoids
+transaction aborts on PostgreSQL where trying to add an existing
+column inside an Alembic transaction would poison the whole upgrade.
 """
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from sqlalchemy.exc import OperationalError
 
 from alembic import op
 
@@ -29,23 +29,27 @@ _COLUMNS: list[tuple[str, sa.types.TypeEngine, bool]] = [
 ]
 
 
+def _column_exists(table: str, column: str) -> bool:
+    """Check whether *column* already exists on *table*."""
+    inspector = sa.inspect(op.get_bind())
+    cols = {c["name"] for c in inspector.get_columns(table)}
+    return column in cols
+
+
 def upgrade() -> None:
     """Add cache metric columns to benchmark_results (idempotent).
 
-    Each column is added in its own batch transaction.  If a column
-    already exists (e.g. because init_db() ran first on a fresh DB),
-    the OperationalError is caught and logged — the migration
-    continues to the next column.
+    Each column is checked for existence before attempting to add it.
+    This avoids transaction aborts on PostgreSQL — trying to add a
+    column that already exists inside an Alembic transaction would
+    poison the entire upgrade.
     """
     for col_name, col_type, nullable in _COLUMNS:
-        try:
+        if not _column_exists("benchmark_results", col_name):
             with op.batch_alter_table("benchmark_results") as batch_op:
                 batch_op.add_column(
                     sa.Column(col_name, col_type, nullable=nullable)
                 )
-        except OperationalError:
-            # Column already exists — init_db() created it before Alembic ran.
-            pass
 
 
 def downgrade() -> None:
