@@ -13,6 +13,9 @@ class OpenRouterProvider(OpenAICompatibleProvider):
         "HTTP-Referer": "https://github.com/productsway/PromptBench",
         "X-Title": "PromptBench",
     }
+    # Frozen snapshot at class-def time — get_models() override below
+    # reads the live lists instead.  Kept as a fallback for code that
+    # accesses model_names directly rather than calling get_models().
     model_names = {m: m for m in OPENROUTER_FREE_MODELS + OPENROUTER_PAID_MODELS}
 
     def get_models(self) -> list[ModelInfo]:
