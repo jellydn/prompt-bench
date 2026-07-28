@@ -1,0 +1,38 @@
+# ── Dependencies (reinstalled in Dockerfile) ──────────────────────
+frontend/node_modules
+backend/.venv
+
+# ── Build artifacts ────────────────────────────────────────────────
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+**/.ruff_cache
+*.egg-info
+
+# ── Git ────────────────────────────────────────────────────────────
+.git
+
+# ── Environment files (never in the image) ─────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Logs ───────────────────────────────────────────────────────────
+*.log
+
+# ── Dev tooling ────────────────────────────────────────────────────
+.freebuff
+.amp
+.planning
+
+# ── OS files ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── IDE ────────────────────────────────────────────────────────────
+.idea
+.vscode
+*.swp
+*.swo
+*~
