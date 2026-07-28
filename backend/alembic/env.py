@@ -15,14 +15,22 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Import the model Base without triggering app.database engine creation
+from app.db_utils import normalize_db_url  # noqa: E402
 from app.models import Base  # noqa: E402
 
 target_metadata = Base.metadata
 
 
 def get_url() -> str:
-    """Get the database URL, allowing override via environment variable."""
-    return os.environ.get("ALEMBIC_TEST_URL") or config.get_main_option("sqlalchemy.url")
+    """Get the database URL, preferring DATABASE_URL from the environment.
+
+    Priority: DATABASE_URL > ALEMBIC_TEST_URL > alembic.ini value.
+    This ensures migrations use the same database as the running app.
+    """
+    url = os.environ.get("DATABASE_URL") or os.environ.get("ALEMBIC_TEST_URL")
+    if url:
+        return normalize_db_url(url)
+    return config.get_main_option("sqlalchemy.url")
 
 
 def run_migrations_offline() -> None:

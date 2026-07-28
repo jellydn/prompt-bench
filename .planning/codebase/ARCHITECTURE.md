@@ -1,154 +1,211 @@
 # Architecture
 
-**Analysis Date:** 2026-07-26
+## System Design
 
-## Pattern Overview
+PromptBench is a **monorepo** with two deployable units sharing TypeScript/Python source:
 
-**Overall:** Monorepo with a two-tier client-server architecture (React SPA + FastAPI backend) using the Provider pattern for AI model access.
+```
+Browser (React SPA) ←→ FastAPI (REST JSON) ←→ PostgreSQL + Redis
+                              ↓
+                    External AI Provider APIs
+                    (OpenAI, Anthropic, Gemini,
+                     OpenRouter, Ollama, vLLM)
+```
 
-**Key Characteristics:**
+The frontend is a static SPA served by the same FastAPI process in production (Docker multi-stage builds frontend into `backend/static/`). In development, Vite's dev server proxies `/api` to `localhost:8000`.
 
-- Monorepo split into `frontend/` (React/Vite/TypeScript) and `backend/` (FastAPI/Python/SQLAlchemy)
-- Provider abstraction layer: each AI provider implements a common interface, enabling pluggable model backends
-- RESTful JSON APIs with no authentication layer; API keys are server-side secrets
-- Single-page application with client-side routing and server-side data fetching via TanStack Query
-- SQLAlchemy ORM with SQLite (default/dev) and PostgreSQL (Docker/production) via a single config switch
+## Backend Architecture
 
-## Layers
+### Layer Diagram
 
-**Frontend Presentation Layer:**
+```
+┌─────────────────────────────────────────────────┐
+│ Routers (benchmarks, insights, providers,       │
+│          cache, session_keys)                   │
+│  - FastAPI route handlers                       │
+│  - Request validation (Pydantic schemas)         │
+│  - Dependency injection (get_db, limiter)        │
+├─────────────────────────────────────────────────┤
+│ Services / Domain Logic                          │
+│  - run_one() — benchmark execution orchestrator  │
+│  - response_cache.get_or_compute()              │
+│  - provider.generate() — API calls               │
+│  - SessionKeyStore — in-memory session keys      │
+├─────────────────────────────────────────────────┤
+│ Data Access (SQLAlchemy ORM)                    │
+│  - models.py — Benchmark, BenchmarkResult        │
+│  - Session = Depends(get_db)                    │
+│  - Alembic migrations                           │
+├─────────────────────────────────────────────────┤
+│ Infrastructure                                   │
+│  - config.py — Pydantic Settings                 │
+│  - database.py — engine, sessionmaker            │
+│  - limiter.py — slowapi rate limiter             │
+│  - cache/ — Redis + in-memory backends          │
+└─────────────────────────────────────────────────┘
+```
 
-- Location: `frontend/src/`
-- Contains: React components, page views, UI primitives (shadcn/ui), state hooks, API client
-- Depends on: Vite dev server proxy, TanStack Query, Recharts, Tailwind CSS
-- Used by: end users via browser at `localhost:5173`
+### Request Flow: Run Benchmark
 
-**Backend API Layer:**
+```
+POST /api/benchmarks
+  → create_benchmark (benchmarks.py)
+    → inject pb_session cookie → payload._session_id
+    → _repair_stuck_benchmarks(db)
+    → INSERT Benchmark (status='running')
+    → asyncio.gather(run_one() for each model)
+      → get_provider(provider_id)
+      → inject BYOK key (per-request > session > server)
+      → compute response_cache_key()
+      → response_cache.get_or_compute(key, _compute, cacheable=use_cache)
+        → if cache hit: return serialized ProviderResponse
+        → if cache miss: async with _semaphore → provider.generate()
+          → httpx.AsyncClient.stream(POST, provider.base_url, ...)
+          → parse SSE events → ProviderResponse
+      → return (item, result, error, cache_info)
+    → INSERT BenchmarkResult for each outcome
+    → UPDATE Benchmark.status → 'completed' or 'failed'
+    → return BenchmarkOut with selectinload(results)
+  ← 200 JSON
+```
 
-- Location: `backend/app/routers/`
-- Contains: FastAPI `APIRouter` instances for benchmarks, providers, and insights
-- Depends on: `backend/app/providers/`, `backend/app/models.py`, `backend/app/schemas.py`, `backend/app/database.py`
-- Used by: frontend and direct API consumers (curl, etc.)
+### Request Flow: History Page
 
-**Provider Abstraction Layer:**
+```
+GET /api/benchmarks?limit=20&offset=0
+  → history() (benchmarks.py)
+    → SELECT benchmarks ORDER BY created_at DESC LIMIT 20
+    → selectinload(Benchmark.results) — loads all result rows
+    → aggregate per benchmark:
+      - total_cost = sum(cost for non-cache-hits)
+      - total_tokens = sum(input + output)
+      - avg_latency_ms = mean(latencies)
+    → return list[BenchmarkSummary]
+  ← 200 JSON
+```
 
-- Location: `backend/app/providers/`
-- Contains: `BaseProvider` ABC, `OpenAICompatibleProvider` shared mixin, six concrete provider implementations
-- Depends on: `backend/app/config.py`, `backend/app/pricing.py`, `backend/app/providers/base.py`
-- Used by: `backend/app/routers/benchmarks.py` (via `get_provider()`)
+### Request Flow: Insights
 
-**Data Persistence Layer:**
+```
+GET /api/insights
+  → insights() (insights.py)
+    → SELECT recent benchmark IDs (LIMIT 50)
+    → SQL-level aggregation via sqlalchemy.func:
+      - most_expensive_prompt: SUM(cost) GROUP BY benchmark_id
+      - fastest_model: AVG(total_latency_ms) GROUP BY (provider, model)
+      - lowest_cost_model: AVG(cost) GROUP BY (provider, model)
+      - best_cost_performance: computed score = 1/(avg_cost * avg_latency)
+    → No application-level loops — all in SQL
+  ← 200 JSON
+```
 
-- Location: `backend/app/database.py`, `backend/app/models.py`
-- Contains: SQLAlchemy `DeclarativeBase`, engine, session maker, two ORM models (`Benchmark`, `BenchmarkResult`)
-- Depends on: `backend/app/config.py` (for `DATABASE_URL`)
-- Used by: all routers via `get_db()` dependency injection
+### Provider Pattern (ADR-002)
 
-**Configuration Layer:**
+All providers extend `BaseProvider(ABC)` which defines:
+- `async generate(prompt, model, ...) → ProviderResponse` — abstract
+- `get_models() → list[ModelInfo]` — default implementation reading `PRICING`
+- `is_configured` — abstract property
 
-- Location: `backend/app/config.py`
-- Contains: Pydantic `Settings` class loaded from `.env` file
-- Used by: every backend module that needs settings (providers, database, config)
+Six providers registered in `PROVIDERS` dict (keyed by `provider_id`):
+1. `OpenAIProvider(OpenAICompatibleProvider)` — OpenAI API
+2. `AnthropicProvider(BaseProvider)` — Anthropic API (custom SSE)
+3. `GeminiProvider(BaseProvider)` — Google Gemini API (custom SSE, URL auth)
+4. `OpenRouterProvider(OpenAICompatibleProvider)` — OpenRouter aggregation
+5. `OllamaProvider(BaseProvider)` — Local Ollama (always configured)
+6. `VLLMProvider(OpenAICompatibleProvider)` — Local vLLM
 
-## Data Flow
+`OpenAICompatibleProvider` is a shared base for providers using the standard OpenAI SSE format (delta chunks with optional usage). It implements `generate()` with `stream_options: {include_usage: true}`.
 
-**Benchmark Execution Flow:**
+Provider info is cached via `get_providers_cached()` (TTL: 5 minutes). The `model_lists.refresh_openrouter_free_models()` call at startup invalidates this cache.
 
-1. User submits a prompt + model selections in the frontend (`BenchmarkRun.tsx`)
-2. Frontend POSTs to `/api/benchmarks` with `CreateBenchmark` JSON payload
-3. FastAPI router in `benchmarks.py` deserializes the request via `BenchmarkCreate` Pydantic schema
-4. A new `Benchmark` ORM row is inserted with status `"running"`
-5. `asyncio.gather()` concurrently dispatches `run_one()` for each selected model
-6. Each `run_one()` resolves the provider via `get_provider()`, checks `is_configured`, then calls `provider.generate()`
-7. Each provider streams the AI response, tallies tokens/latency/cost, and returns a `ProviderResponse`
-8. Results are batch-committed as `BenchmarkResult` rows linked to the benchmark
-9. The updated `Benchmark` (with eager-loaded results) is returned to the frontend
-10. Frontend navigates to the results page, fetching individual results via `/api/benchmarks/{id}`
+### BYOK Key Injection (ADR-003)
 
-**Cost Calculation Flow:**
+In `run_one()`:
+1. Check `benchmark_req.client_keys` (per-request JSON body)
+2. Fall back to `SessionKeyStore.get_keys()` (session cookie)
+3. If key found: `copy.copy(provider)` → set `_client_api_key`
+4. The `copy.copy()` prevents mutating the global singleton
 
-1. Each provider calls `calculate_cost(provider_id, model, input_tokens, output_tokens)` from `backend/app/pricing.py`
-2. The `PRICING` dict maps `(provider, model)` to `{input: $/1k, output: $/1k}` rates
-3. Cost = `(input_tokens / 1000) * input_price + (output_tokens / 1000) * output_price`
-4. Providers without pricing data (Ollama, vLLM, free models) return `0.0`
+Key priority: per-request > session > server-configured.
 
-**Insights Flow:**
+### Cache Architecture (ADR-005, ADR-007)
 
-1. Frontend fetches `/api/insights`
-2. Backend queries all benchmarks and benchmark results from the database
-3. Computes aggregates: most expensive prompt, fastest model, lowest-cost model, best cost/performance
-4. Returns a summary JSON object to the frontend
+**Response cache**: `ResponseCache.get_or_compute(key, compute_fn, cacheable)` — if `cacheable=False`, always calls the provider. Used for BYOK requests (ADR-007 prevents cross-user leakage).
 
-**Provider Registration Flow:**
+**Stampede prevention** (ADR-004): `_KeyLockRegistry` is an `asyncio.Lock` per cache key. First waiter acquires lock and calls the provider; subsequent waiters re-check the cache after release.
 
-1. `backend/app/providers/__init__.py` imports all six provider classes and builds the `PROVIDERS` dict keyed by `provider_id`
-2. `get_provider(provider_id)` does a dict lookup at runtime
-3. Adding a new provider means: writing the class, importing it in `__init__.py`, and adding it to the `PROVIDERS` dict
+**Cache key** (ADR-005): Includes provider, model, prompt_template, rendered_prompt, system_prompt, temperature, max_tokens, seed, response_format, and benchmark_config_version. Deterministic JSON serialization before SHA-256 hashing.
 
-## Key Abstractions
+**Cache metrics**: `CacheInfo` dataclass with `cache_hit`, `cache_type`, `cache_lookup_ms`, `provider_latency_ms`, `total_latency_ms`. On cache hits, `provider_latency_ms` preserves the original run's time (not zero) so the frontend can compute speedup.
 
-**BaseProvider (ABC):**
+## Frontend Architecture
 
-- Purpose: Defines the contract every AI provider must fulfill
-- Examples: `backend/app/providers/base.py`
-- Pattern: Abstract base class with three abstract members — `generate()` (async), `get_models()`, `is_configured` (property)
+### Component Tree
 
-**OpenAICompatibleProvider:**
+```
+App
+├── Sidebar (desktop) / Header (mobile hamburger)
+│   ├── Run Benchmark (/)
+│   ├── Compare (/compare)
+│   ├── History (/history)
+│   └── Insights (/insights)
+├── Bottom Tab Bar (mobile only)
+└── Routes
+    ├── BenchmarkRun
+    │   ├── Card: Prompt input (textarea + sliders)
+    │   └── Card: Model selection (per-provider with BYOK inputs)
+    ├── BenchmarkResults
+    │   ├── Summary (prompt, params)
+    │   ├── Results Table (latency/cost/tokens per model)
+    │   ├── Tab: Model Responses
+    │   ├── Charts (Recharts bar/pie)
+    │   └── BenchmarkCacheSection
+    │       ├── Cache Badge (per result)
+    │       ├── Performance comparison table
+    │       ├── Summary cards (latency reduction, cost avoided)
+    │       └── Latency breakdown chart
+    ├── CompareRuns
+    │   ├── Run ID inputs
+    │   └── Side-by-side comparison table (speedup, cost avoided)
+    ├── History
+    │   └── Table (date, prompt, models, cost, tokens, latency)
+    └── Insights
+        └── Cards (expensive prompt, fastest model, cheapest, best)
+```
 
-- Purpose: Shared implementation for all OpenAI-compatible providers (OpenAI, OpenRouter, vLLM)
-- Examples: `backend/app/providers/common.py`, `backend/app/providers/openai.py`, `backend/app/providers/openrouter.py`, `backend/app/providers/vllm.py`
-- Pattern: Inherits `BaseProvider`, implements streaming HTTP(SSE) logic once, subclasses only set config fields (`api_key`, `base_url`, `model_names`)
+### State Management
 
-**ModelInfo (dataclass):**
+React Query (`@tanstack/react-query`) handles all server state:
+- `useQuery` for providers list, history, insights, session keys, cache stats
+- `useMutation` for create benchmark, delete benchmark, save session key
+- Query keys: `["providers"]`, `["history", offset]`, `["insights"]`, etc.
 
-- Purpose: Lightweight value object describing an available model
-- Examples: `backend/app/providers/base.py`
-- Pattern: `id`, `name`, `pricing` fields
+Local React state (`useState`) for:
+- Form inputs (prompt, temperature, max_tokens, selected models)
+- BYOK key inputs (per-provider, never persisted)
+- Dark mode toggle (persisted in localStorage)
+- Mobile menu open/close
+- Pagination offset
 
-**ProviderResponse (dataclass):**
+### Routing
 
-- Purpose: Standardized return value from any provider's `generate()` call
-- Examples: `backend/app/providers/base.py`
-- Pattern: `input_tokens`, `output_tokens`, `ttft_ms`, `total_latency_ms`, `response_text`, `response_length`, `cost`, `error`
+React Router v7 with 5 routes:
+| Path | Component | Lazy Loaded |
+|------|-----------|-------------|
+| `/` | `BenchmarkRun` | ✓ |
+| `/results/:id` | `BenchmarkResults` | ✓ |
+| `/compare` | `CompareRuns` | ✓ |
+| `/history` | `History` | ✓ |
+| `/insights` | `Insights` | ✓ |
 
-## Entry Points
+All pages are lazy-loaded with `React.lazy()` + `<Suspense>`.
 
-**Backend:**
+### Theme
 
-- Location: `backend/app/main.py`
-- Triggers: `uvicorn app.main:app` or `docker compose up`
-- Responsibilities: Creates the FastAPI app, registers lifespan context (DB init), adds CORS middleware, includes three routers under `/api` prefix, serves root health check
+Dark/light mode via CSS custom properties (`--background`, `--foreground`, `--primary`, etc.) in `index.css`. Toggled by `.dark` class on `<html>`. Persisted in `localStorage("theme")`. shadcn/ui components use these CSS variables.
 
-**Frontend:**
+### Component Library
 
-- Location: `frontend/src/main.tsx`
-- Triggers: `npm run dev` (Vite dev server on port 5173)
-- Responsibilities: Creates React root, wraps app in `QueryClientProvider`, renders `App` component
+shadcn/ui components in `components/ui/`: button, card, badge, table, tabs, select, slider, separator, textarea, input, label. All use Tailwind CSS with `cn()` utility for class merging (`clsx` + `tailwind-merge`).
 
-**App Shell:**
-
-- Location: `frontend/src/App.tsx`
-- Triggers: Initial render after `main.tsx` mounts
-- Responsibilities: Manages page state (`run`/`history`/`insights`/`results`), renders sidebar navigation, conditionally renders page components, handles dark mode toggle
-
-## Error Handling
-
-**Strategy:** Mixed — exceptions from provider HTTP calls are caught in the router's `run_one()` helper and stored as error strings on `BenchmarkResult.error`. The router then sets `benchmark.status` to `"failed"` if all models errored, otherwise `"completed"`.
-
-**Patterns:**
-
-- Provider-level: `response.raise_for_status()` on HTTP responses; general `Exception` catch in `run_one()` that returns error string
-- Schema-level: Pydantic field validators (e.g., `temperature` range `0-2`, `max_tokens > 0`, `prompt` min length 1)
-- Router-level: `HTTPException(404)` for missing benchmark lookups; `selectinload` for eager loading to avoid N+1
-
-## Cross-Cutting Concerns
-
-**Logging:** No explicit logging framework; relies on Python/stdout and FastAPI's built-in request logging.
-
-**Validation:** Pydantic models for request/response schemas (`schemas.py`); `field_validator` on `Settings` for CORS origin parsing; `@field_validator(mode="before")` for comma-separated CORS origins.
-
-**Authentication:** None. The API is unauthenticated; security relies on API keys being server-side environment variables (never exposed to the frontend). This is appropriate for a local/dev benchmarking tool.
-
----
-
-_Architecture analysis: 2026-07-26_
+Custom components: `ErrorBoundary`, `BenchmarkCacheSection` (with exported `CacheBadge`).

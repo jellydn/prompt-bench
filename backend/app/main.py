@@ -1,4 +1,6 @@
 import logging
+import os
+import subprocess
 import sys
 from contextlib import asynccontextmanager
 
@@ -22,12 +24,95 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 logger = logging.getLogger("promptbench")
+def _run_alembic_migrations() -> None:
+    """Apply pending Alembic migrations after tables exist.
+
+    ``init_db()`` runs first and creates tables with the full current
+    schema.  This function then:
+
+    1. Checks whether ``alembic_version`` already exists.  If not, it
+       stamps the initial migration (2dae871076fe) so Alembic knows
+       the baseline tables already exist — a one-time bootstrap step.
+    2. Runs ``upgrade head`` to apply any migrations that ``init_db``
+       could not handle (e.g. ALTER TABLE on an existing create_all
+       database where columns were missing).
+
+    The stamp check is important: re-stamping on every startup would
+    overwrite the migration state and force re-execution of already-
+    applied migrations.
+    """
+    try:
+        db_url = str(settings.database_url)
+        env = {**os.environ, "DATABASE_URL": db_url}
+
+        # One-time bootstrap: if alembic_version does not exist yet, mark
+        # the initial migration as done.  After the first successful run
+        # we never stamp again — only upgrade.
+        alembic_current = subprocess.run(
+            ["alembic", "current"],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        need_stamp = alembic_current.returncode != 0 or not alembic_current.stdout.strip()
+
+        if need_stamp:
+            stamp = subprocess.run(
+                ["alembic", "stamp", "2dae871076fe"],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            if stamp.returncode == 0:
+                logger.info("Alembic baseline stamped (first run)")
+            else:
+                logger.warning(
+                    "Alembic stamp warning: %s",
+                    stamp.stderr.strip(),
+                )
+
+        # Apply any incremental migrations.
+        result = subprocess.run(
+            ["alembic", "upgrade", "head"],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        if result.returncode == 0:
+            logger.info("Database migrations applied successfully")
+            return
+        # Defensive: surface common failure patterns clearly.
+        stderr_lower = result.stderr.lower()
+        if "already exists" in stderr_lower:
+            logger.info("Alembic upgrade skipped — schema already up to date")
+            return
+        logger.warning(
+            "Alembic upgrade failed (rc=%d): %s",
+            result.returncode,
+            result.stderr.strip(),
+        )
+    except FileNotFoundError:
+        logger.info("Alembic CLI not found — migrations not available")
+    except subprocess.TimeoutExpired:
+        logger.warning("Alembic upgrade timed out after 30 s")
+    except Exception as exc:
+        logger.warning("Alembic migration error: %s", exc)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting PromptBench server")
-    init_db()
+    # Run Alembic migrations before anything touches the database.
+    # In production, the initial deployment used create_all() which cannot
+    # add columns to existing tables.  Alembic handles incremental changes.
+    init_db()  # Create tables first (no-op if they exist)
+    _run_alembic_migrations()
     # Repair any benchmarks stuck as "running" from a previous crash
     from .database import SessionLocal  # noqa: PLC0415
     from .routers.benchmarks import _repair_stuck_benchmarks  # noqa: PLC0415
@@ -81,7 +166,6 @@ def health():
 
 
 # Serve frontend static files — must be last to avoid catching API routes
-import os  # noqa: E402
 
 _static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
 if os.path.isdir(_static_dir):

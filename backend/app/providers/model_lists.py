@@ -31,9 +31,12 @@ _STATIC_OPENROUTER_FREE = [
 
 # OpenRouter popular paid models (not refreshed from API)
 OPENROUTER_PAID_MODELS = [
+    "openai/gpt-4.1",
     "openai/gpt-4o",
-    "anthropic/claude-3.5-sonnet",
-    "google/gemini-pro-1.5",
+    "anthropic/claude-sonnet-5",
+    "anthropic/claude-opus-5",
+    "google/gemini-2.5-pro",
+    "google/gemini-3.5-flash",
     "meta-llama/llama-3.1-70b-instruct",
 ]
 
@@ -103,7 +106,12 @@ async def refresh_openrouter_free_models() -> None:
     OPENROUTER_FREE_MODELS.clear()
     OPENROUTER_FREE_MODELS.extend(free_models)
     _last_refresh = now
-    # Invalidate the provider cache so refreshed models appear immediately
+    # Invalidate the provider cache so refreshed models appear immediately.
+    #
+    # NOTE: this import is intentionally deferred (not at module level) to
+    # break a potential circular import chain:
+    #   base.py → pricing.py → model_lists.py → providers/__init__.py → …
+    # Moving it to module level would create an import cycle.
     from . import invalidate_provider_cache  # noqa: PLC0415
 
     invalidate_provider_cache()

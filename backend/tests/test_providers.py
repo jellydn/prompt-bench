@@ -47,7 +47,7 @@ class TestPricing:
         assert calculate_cost("openai", "unknown-model", 100, 50) == 0.0
 
     def test_large_token_counts(self):
-        cost = calculate_cost("anthropic", "claude-3-5-sonnet-20241022", 100_000, 50_000)
+        cost = calculate_cost("anthropic", "claude-haiku-4-5", 100_000, 50_000)
         assert cost > 0
         assert cost < 1000
 
@@ -314,7 +314,7 @@ class TestBYOKAnthropicAuthHeader:
         ):
             result = await provider.generate(
                 prompt="test",
-                model="claude-3-5-haiku-20241022",
+                model="claude-haiku-4-5",
                 temperature=0,
                 max_tokens=10,
             )
@@ -343,7 +343,7 @@ class TestBYOKAnthropicAuthHeader:
             ):
                 result = await provider.generate(
                     prompt="test",
-                    model="claude-3-5-haiku-20241022",
+                    model="claude-haiku-4-5",
                     temperature=0,
                     max_tokens=10,
                 )
@@ -372,7 +372,7 @@ class TestBYOKAnthropicAuthHeader:
             ):
                 result = await provider.generate(
                     prompt="test",
-                    model="claude-3-5-haiku-20241022",
+                    model="claude-haiku-4-5",
                     temperature=0,
                     max_tokens=10,
                 )
@@ -403,7 +403,7 @@ class TestBYOKAnthropicAuthHeader:
             ):
                 result = await provider.generate(
                     prompt="test",
-                    model="claude-3-5-haiku-20241022",
+                    model="claude-haiku-4-5",
                     temperature=0,
                     max_tokens=10,
                 )
@@ -443,7 +443,7 @@ class TestBYOKAnthropicAuthHeader:
         with patch("app.providers.anthropic.httpx.AsyncClient", _MultiPC):
             result = await provider.generate(
                 prompt="test",
-                model="claude-3-5-haiku-20241022",
+                model="claude-haiku-4-5",
                 temperature=0,
                 max_tokens=10,
             )
@@ -455,7 +455,7 @@ class TestBYOKAnthropicAuthHeader:
         assert result.input_tokens == 10
         assert result.output_tokens == 3
         assert result.response_chars == 11
-        assert result.cost > 0  # claude-3-5-haiku pricing
+        assert result.cost > 0  # claude-haiku-4-5 pricing
         assert result.ttft_ms >= 0
         assert result.total_latency_ms >= 0
 
@@ -514,7 +514,7 @@ class TestBYOKGeminiAuthHeader:
         ):
             result = await provider.generate(
                 prompt="test",
-                model="gemini-1.5-flash",
+                model="gemini-2.5-flash",
                 temperature=0,
                 max_tokens=10,
             )
@@ -544,7 +544,7 @@ class TestBYOKGeminiAuthHeader:
             ):
                 result = await provider.generate(
                     prompt="test",
-                    model="gemini-1.5-flash",
+                    model="gemini-2.5-flash",
                     temperature=0,
                     max_tokens=10,
                 )
@@ -573,7 +573,7 @@ class TestBYOKGeminiAuthHeader:
             ):
                 result = await provider.generate(
                     prompt="test",
-                    model="gemini-1.5-flash",
+                    model="gemini-2.5-flash",
                     temperature=0,
                     max_tokens=10,
                 )
@@ -605,7 +605,7 @@ class TestBYOKGeminiAuthHeader:
             ):
                 result = await provider.generate(
                     prompt="test",
-                    model="gemini-1.5-flash",
+                    model="gemini-2.5-flash",
                     temperature=0,
                     max_tokens=10,
                 )
@@ -639,7 +639,7 @@ class TestBYOKGeminiAuthHeader:
             with pytest.raises(httpx.HTTPStatusError) as exc_info:
                 await provider.generate(
                     prompt="test",
-                    model="gemini-1.5-flash",
+                    model="gemini-2.5-flash",
                     temperature=0,
                     max_tokens=10,
                 )
@@ -681,7 +681,7 @@ class TestBYOKGeminiAuthHeader:
         with patch("app.providers.gemini.httpx.AsyncClient", _MultiPC):
             result = await provider.generate(
                 prompt="test",
-                model="gemini-1.5-flash",
+                model="gemini-2.5-flash",
                 temperature=0,
                 max_tokens=10,
             )
@@ -692,7 +692,7 @@ class TestBYOKGeminiAuthHeader:
         assert result.input_tokens == 10
         assert result.output_tokens == 3
         assert result.response_chars == 11
-        assert result.cost > 0  # gemini-1.5-flash pricing
+        assert result.cost > 0  # gemini-2.5-flash pricing
         assert result.ttft_ms >= 0
         assert result.total_latency_ms >= 0
 

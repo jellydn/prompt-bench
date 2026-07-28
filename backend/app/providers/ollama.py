@@ -5,8 +5,7 @@ import time
 import httpx
 
 from ..config import settings
-from ..pricing import PRICING
-from .base import BaseProvider, ModelInfo, ProviderResponse
+from .base import BaseProvider, ProviderResponse
 from .model_lists import OLLAMA_MODELS
 
 logger = logging.getLogger(__name__)
@@ -20,9 +19,6 @@ class OllamaProvider(BaseProvider):
     @property
     def is_configured(self):
         return True
-
-    def get_models(self):
-        return [ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.model_names.items()]
 
     async def generate(self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000):
         messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + [

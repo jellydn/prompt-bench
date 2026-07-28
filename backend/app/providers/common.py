@@ -3,8 +3,8 @@ import time
 
 import httpx
 
-from ..pricing import PRICING, calculate_cost
-from .base import BaseProvider, ModelInfo, ProviderResponse
+from ..pricing import calculate_cost
+from .base import BaseProvider, ProviderResponse
 
 
 class OpenAICompatibleProvider(BaseProvider):
@@ -18,12 +18,6 @@ class OpenAICompatibleProvider(BaseProvider):
     @property
     def is_configured(self) -> bool:
         return self.always_configured or bool(self._client_api_key or self.api_key)
-
-    def get_models(self):
-        return [
-            ModelInfo(mid, name, PRICING[self.provider_id][mid])
-            for mid, name in self.model_names.items()
-        ]
 
     async def generate(self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000):
         messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + [

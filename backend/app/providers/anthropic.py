@@ -4,25 +4,23 @@ import time
 import httpx
 
 from ..config import get_settings
-from ..pricing import PRICING, calculate_cost
-from .base import BaseProvider, ModelInfo, ProviderResponse
+from ..pricing import calculate_cost
+from .base import BaseProvider, ProviderResponse
 
 
 class AnthropicProvider(BaseProvider):
     provider_id, provider_name = "anthropic", "Anthropic"
     supports_byok = True
     model_names = {
-        "claude-3-5-sonnet-20241022": "Claude 3.5 Sonnet",
-        "claude-3-5-haiku-20241022": "Claude 3.5 Haiku",
-        "claude-3-opus-20240229": "Claude 3 Opus",
+        "claude-sonnet-5": "Claude Sonnet 5",
+        "claude-opus-5": "Claude Opus 5",
+        "claude-fable-5": "Claude Fable 5",
+        "claude-haiku-4-5": "Claude Haiku 4.5",
     }
 
     @property
     def is_configured(self):
         return bool(self._client_api_key or get_settings().anthropic_api_key)
-
-    def get_models(self):
-        return [ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.model_names.items()]
 
     async def generate(self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000):
         payload = {

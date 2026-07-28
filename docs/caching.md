@@ -206,7 +206,7 @@ models:
   - provider: openai
     model: gpt-4o-mini
   - provider: anthropic
-    model: claude-3-5-haiku-20241022
+    model: claude-haiku-4-5
 ```
 
 `cache stats` output:
