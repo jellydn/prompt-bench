@@ -98,7 +98,7 @@ export default function App() {
           onClick={() => setOpen(false)}
         />
       )}
-      <main className="px-4 pb-10 pt-24 md:ml-64 md:p-8">
+      <main className="px-4 pb-20 pt-24 md:ml-64 md:p-8">
         <Suspense
           fallback={
             <div className="flex h-64 items-center justify-center text-muted-foreground">
@@ -114,6 +114,34 @@ export default function App() {
           </Routes>
         </Suspense>
       </main>
+      <nav className="fixed bottom-0 inset-x-0 z-10 flex items-center justify-around border-t bg-background px-2 pb-[env(safe-area-inset-bottom,0px)] pt-1 md:hidden">
+        {nav.map((n) => (
+          <NavLink
+            key={n.to}
+            to={n.to}
+            end={n.end}
+            className={({ isActive }) =>
+              cn(
+                "flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[11px] font-medium",
+                isActive
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground",
+              )
+            }
+          >
+            <n.icon className="h-5 w-5" />
+            <span>{n.label.split(" ")[0]}</span>
+          </NavLink>
+        ))}
+        <button
+          onClick={() => setDark(!dark)}
+          className="flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+          aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          <span>Theme</span>
+        </button>
+      </nav>
     </div>
   );
 }
