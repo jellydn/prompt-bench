@@ -86,6 +86,14 @@ export default function BenchmarkResults() {
               </Badge>
             </div>
             <p className="mt-4 text-destructive">All models returned errors.</p>
+            <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-muted-foreground">
+              {b.results.map((r) => (
+                <li key={r.id}>
+                  <span className="font-medium">{r.provider}/{r.model}</span>
+                  {r.error ? ` — ${r.error}` : " — unknown error"}
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
         <Card>

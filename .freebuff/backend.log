@@ -1,0 +1,16 @@
+Using SQLite database — this is suitable for development only. For production, use PostgreSQL (see docker-compose.yml).
+2026-07-28T10:59:03 [INFO] promptbench: No static directory found at /Users/huynhdung/src/tries/2026-07-27-jellydn-prompt-bench/backend/app/../static — API only
+INFO:     Started server process [56917]
+INFO:     Waiting for application startup.
+2026-07-28T10:59:03 [INFO] promptbench: Starting PromptBench server
+2026-07-28T10:59:03 [INFO] httpx: HTTP Request: GET https://openrouter.ai/api/v1/models "HTTP/1.1 200 OK"
+2026-07-28T10:59:03 [INFO] app.providers.model_lists: OpenRouter free models refreshed: 11 → 18 models
+2026-07-28T10:59:03 [INFO] promptbench.cache: No REDIS_URL configured — using in-memory cache
+2026-07-28T10:59:03 [INFO] promptbench: PromptBench ready — 18 OpenRouter free models
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-07-28T10:59:07 [INFO] promptbench: PromptBench shutting down
+INFO:     Application shutdown complete.
+INFO:     Finished server process [56917]

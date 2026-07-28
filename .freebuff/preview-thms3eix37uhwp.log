@@ -1,0 +1,65 @@
+Port 5173 is in use, trying another one...
+
+  VITE v6.4.3  ready in 108 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.1.1:5174/
+  ➜  Network: http://192.168.139.3:5174/
+  ➜  Network: http://192.168.97.0:5174/
+9:15:12 PM [vite] http proxy error: /api/session-key
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+9:15:12 PM [vite] http proxy error: /api/providers
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+9:15:13 PM [vite] http proxy error: /api/session-key
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+9:15:13 PM [vite] http proxy error: /api/providers
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+9:15:24 PM [vite] http proxy error: /api/session-key
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+9:15:24 PM [vite] http proxy error: /api/providers
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+9:15:35 PM [vite] http proxy error: /api/session-key
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+9:15:35 PM [vite] http proxy error: /api/providers
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+9:15:36 PM [vite] http proxy error: /api/session-key
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+9:15:36 PM [vite] http proxy error: /api/providers
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+Using SQLite database — this is suitable for development only. For production, use PostgreSQL (see docker-compose.yml).
+2026-07-28T21:16:07 [INFO] promptbench: No static directory found at /Users/huynhdung/src/tries/2026-07-27-jellydn-prompt-bench/backend/app/../static — API only
+INFO:     Started server process [13486]
+INFO:     Waiting for application startup.
+2026-07-28T21:16:07 [INFO] promptbench: Starting PromptBench server
+2026-07-28T21:16:08 [INFO] promptbench: Database migrations applied successfully
+2026-07-28T21:16:09 [INFO] httpx: HTTP Request: GET https://openrouter.ai/api/v1/models "HTTP/1.1 200 OK"
+2026-07-28T21:16:09 [INFO] app.providers.model_lists: OpenRouter free models refreshed: 11 → 17 models
+2026-07-28T21:16:09 [INFO] promptbench.cache: No REDIS_URL configured — using in-memory cache
+2026-07-28T21:16:09 [INFO] promptbench: PromptBench ready — 17 OpenRouter free models
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-07-28T21:16:22 [INFO] promptbench: PromptBench shutting down
+INFO:     Application shutdown complete.
+INFO:     Finished server process [13486]
