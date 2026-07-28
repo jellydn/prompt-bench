@@ -9,13 +9,13 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { ArrowLeft, Database, Zap } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { api } from "@/lib/api";
 import { latency, money, tokens } from "@/lib/utils";
+import BenchmarkCacheSection, { CacheBadge } from "@/components/BenchmarkCacheSection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
 export default function BenchmarkResults() {
   const { id: idParam } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -119,25 +120,7 @@ export default function BenchmarkResults() {
     input: r.input_tokens ?? 0,
     output: r.output_tokens ?? 0,
   }));
-  const hasCacheMetrics = good.some((r) => r.cache_hit != null);
   const cacheBackend = statsQuery.data?.backend;
-  const cacheBadge = (r: typeof good[number]) => {
-    if (r.cache_hit == null) {
-      return <Badge variant="secondary">Cache disabled</Badge>;
-    }
-    return (
-      <Badge
-        variant="default"
-        className={
-          r.cache_hit
-            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-            : ""
-        }
-      >
-        {r.cache_hit ? "Cache hit" : "Cache miss"}
-      </Badge>
-    );
-  };
   return (
     <div className="space-y-6">
       <Button variant="ghost" onClick={back}>
@@ -213,7 +196,7 @@ export default function BenchmarkResults() {
                       <Badge variant={r.error ? "destructive" : "success"}>
                         {r.error ? "Error" : "Success"}
                       </Badge>
-                      {cacheBadge(r)}
+                      <CacheBadge result={r} />
                     </span>
                   </TableCell>
                 </TableRow>
@@ -261,161 +244,7 @@ export default function BenchmarkResults() {
           </CardContent>
         </Card>
       </div>
-      {/* Cache comparison section — only shown when cache metrics exist */}
-      {hasCacheMetrics && (
-        <>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Database className="size-5" />
-                Cache performance
-                {cacheBackend && (
-                  <Badge variant="secondary" className="ml-2 text-xs font-normal">
-                    {cacheBackend}
-                  </Badge>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {[
-                      "Provider / Model",
-                      "Cache",
-                      "Provider latency",
-                      "Cache lookup",
-                      "Total latency",
-                      "Cost",
-                    ].map((x) => (
-                      <TableHead key={x}>{x}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {good.map((r) => (
-                    <TableRow key={r.id}>
-                      <TableCell className="font-medium">
-                        {r.provider} / {r.model}
-                      </TableCell>
-                      <TableCell>
-                        {cacheBadge(r)}
-                      </TableCell>
-                      <TableCell>
-                        {latency(r.provider_latency_ms)}
-                      </TableCell>
-                      <TableCell>
-                        {latency(r.cache_lookup_ms)}
-                      </TableCell>
-                      <TableCell>
-                        {latency(r.total_latency_ms)}
-                      </TableCell>
-                      <TableCell>{money(r.cost)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <Separator className="my-4" />
-              <div className="grid gap-4 md:grid-cols-3">
-                {good.map((r) => {
-                  if (r.cache_hit == null) return null;
-                  const latReduction =
-                    r.provider_latency_ms != null && r.provider_latency_ms > 0
-                      ? Math.round(
-                          Math.max(
-                            0,
-                            ((r.provider_latency_ms - (r.cache_lookup_ms ?? 0)) /
-                              r.provider_latency_ms) *
-                              100,
-                          ),
-                        )
-                      : 0;
-                  const latencySaved =
-                    r.provider_latency_ms != null
-                      ? Math.max(0, r.provider_latency_ms - (r.cache_lookup_ms ?? 0))
-                      : 0;
-                  return (
-                    <div
-                      key={r.id}
-                      className="rounded-lg border p-4 space-y-2"
-                    >
-                      <p className="text-sm font-medium">
-                        {r.provider} / {r.model}
-                      </p>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Zap className="size-4" />
-                        <span>
-                          {r.cache_hit
-                            ? `Cache hit — saved ${latency(latencySaved)} (${latReduction}% reduction)`
-                            : `Cache miss — provider called (${latency(r.provider_latency_ms)})`}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <span>
-                          {r.cache_hit
-                            ? `Cost avoided: ${money(r.cost)}`
-                            : `Provider cost: ${money(r.cost)}`}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-          {/* Latency breakdown chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="size-5" />
-                Latency breakdown (provider vs cache lookup)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="h-72">
-              {(() => {
-                const chartData = good
-                  .filter((r) => r.cache_hit != null)
-                  .map((r) => ({
-                    name: r.model,
-                    provider: r.provider_latency_ms ?? 0,
-                    cache: r.cache_lookup_ms ?? 0,
-                  }));
-                if (chartData.length === 0) {
-                  return (
-                    <p className="text-muted-foreground">
-                      No cache metrics available.
-                    </p>
-                  );
-                }
-                return (
-                  <ResponsiveContainer>
-                    <BarChart data={chartData}>
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip
-                        formatter={(value: number) => `${value}ms`}
-                      />
-                      <Legend />
-                      <Bar
-                        dataKey="provider"
-                        name="Provider latency"
-                        fill="#f59e0b"
-                        radius={[4, 4, 0, 0]}
-                      />
-                      <Bar
-                        dataKey="cache"
-                        name="Cache lookup"
-                        fill="#10b981"
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                );
-              })()}
-            </CardContent>
-          </Card>
-        </>
-      )}
+      <BenchmarkCacheSection results={good} cacheBackend={cacheBackend} />
       <Card>
         <CardHeader>
           <CardTitle>Model responses</CardTitle>
