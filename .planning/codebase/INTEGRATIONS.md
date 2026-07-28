@@ -1,89 +1,85 @@
 # Integrations
 
-## External AI Provider APIs
+## AI Model Providers
 
-All provider calls go through `httpx.AsyncClient` with SSE streaming. Each provider is a class in `backend/app/providers/`.
+| Provider | Provider ID | Auth Method | Transport | Files |
+|----------|------------|-------------|-----------|-------|
+| OpenAI | `openai` | `Authorization: Bearer` header | OpenAI SSE (delta chunks + usage) | `openai.py`, `common.py` |
+| Anthropic | `anthropic` | `x-api-key` header | Custom SSE (content_block_delta) | `anthropic.py` |
+| Google Gemini | `gemini` | `?key=` URL query param | Custom SSE (candidates/parts) | `gemini.py` |
+| OpenRouter | `openrouter` | `Authorization: Bearer` header | OpenAI SSE (same as OpenAI) | `openrouter.py`, `common.py` |
+| Ollama (local) | `ollama` | None | JSON streaming (one JSON per line) | `ollama.py` |
+| vLLM (local) | `vllm` | None | OpenAI SSE (same as OpenAI) | `vllm.py`, `common.py` |
 
-| Provider | File | Auth Method | Base URL | BYOK |
-|----------|------|------------|----------|------|
-| OpenAI | `openai.py` | `Authorization: Bearer` header | `https://api.openai.com/v1/chat/completions` | ✓ |
-| Anthropic | `anthropic.py` | `x-api-key` header | `https://api.anthropic.com/v1/messages` | ✓ |
-| Google Gemini | `gemini.py` | `?key=` URL query param | `https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent` | ✓ |
-| OpenRouter | `openrouter.py` | `Authorization: Bearer` header | `https://openrouter.ai/api/v1/chat/completions` | ✓ |
-| Ollama | `ollama.py` | None (local) | `http://localhost:11434/api/chat` | ✗ |
-| vLLM | `vllm.py` | None (local) | `http://localhost:8001/v1/chat/completions` | ✗ |
+### Provider pattern (ADR-002)
 
-### Provider Architecture
+All providers extend `BaseProvider(ABC)`:
+- `async generate(prompt, model, system_prompt, temperature, max_tokens) → ProviderResponse`
+- `get_models() → list[ModelInfo]` — default implementation reads `PRICING[self.provider_id]` with `.get()` fallback for safety
+- `is_configured` property — checks server API key or BYOK key
 
-**Base class** (`base.py`): `BaseProvider(ABC)` — abstract `generate()`, abstract `is_configured` property, default `get_models()` reading from `PRICING`. All providers set `model_names: dict[str, str]` mapping model IDs to display names.
+`OpenAICompatibleProvider` is a shared base for OpenAI, OpenRouter, and vLLM — implements SSE streaming once.
 
-**Shared base** (`common.py`): `OpenAICompatibleProvider(BaseProvider)` — used by OpenAI, OpenRouter, and vLLM. Implements `generate()` with standard OpenAI-style SSE parsing (delta chunks with `stream_options.include_usage`). Subclasses only set `base_url`, `model_names`, and `api_key`.
+### BYOK (Bring Your Own Key) — ADR-003
 
-**Custom implementations**: Anthropic and Gemini have their own `generate()` methods due to different API protocols (Anthropic uses `content_block_delta` events with `message_start`/`message_delta` framing; Gemini uses URL-embedded keys and `candidates` array parsing). Ollama uses JSON-lines streaming without SSE envelopes.
+Two-phase architecture:
+- **Phase 1 (per-request)**: `client_keys: dict[str, str]` in `CreateBenchmark` body. Keys injected via `provider._client_api_key`, never persisted.
+- **Phase 2 (session-scoped)**: `SessionKeyStore` with cookie-based session, 30-min inactive TTL. `POST /api/session-key`, `DELETE /api/session-key`, `GET /api/session-key/providers`.
 
-### OpenRouter Free Model Refresh
+Key priority: per-request > session > server-configured.
 
-`model_lists.py` fetches `https://openrouter.ai/api/v1/models` at startup (TTL: 1 hour) to discover free models (`pricing.prompt == 0 && pricing.completion == 0`). The result replaces `OPENROUTER_FREE_MODELS` in-place and invalidates the provider cache. Static fallback list is used if the API call fails.
+### Model lists (July 2026)
 
-### Pricing
+| Provider | Models |
+|----------|--------|
+| OpenAI | gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, gpt-4o, gpt-4o-mini, o3, o4-mini |
+| Anthropic | claude-sonnet-5, claude-opus-5, claude-fable-5, claude-haiku-4-5 |
+| Gemini | gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite, gemini-3.5-flash, gemini-3.6-flash |
+| OpenRouter | 11 free (refreshed at startup) + 7 paid (static) |
+| Ollama | llama3.1, mistral, qwen2.5, phi3 |
+| vLLM | Meta-Llama-3.1-8B, Mistral-7B |
 
-`pricing.py` contains a static `PRICING` dict with per-1K-token costs for all models across all providers. `calculate_cost(provider, model, input_tokens, output_tokens)` returns `tokens / 1000 * price` with a default of `{"input": 0.0, "output": 0.0}` for unknown models — it never KeyError's.
+Model lists are shared via `model_lists.py` (single source of truth for both providers and pricing). OpenRouter free models refresh from the API at startup (1-hour TTL).
 
-OpenRouter paid models are priced at pass-through rates matching the underlying provider. Free models get `$0` pricing.
+## Databases
 
-## Database
+| Database | Role | Connection |
+|----------|------|-----------|
+| PostgreSQL | Primary (production, Docker) | `DATABASE_URL` env var, psycopg v3 driver |
+| SQLite | Development fallback | `sqlite:///./promptbench.db` |
+| Redis | Cache backend (optional) | `REDIS_URL` env var; falls back to in-memory |
 
-**PostgreSQL 16** in production (Fly.io with Supabase). **SQLite 3** for local development and tests.
-
-Connection: `SQLAlchemy 2.0` with `psycopg v3` driver. PostgreSQL URLs are normalized: `postgres://` → `postgresql+psycopg://` (handles Fly.io's `postgres://` format).
-
-Connection pooling (`QueuePool`): `pool_size=10`, `max_overflow=20`, `pool_pre_ping=True`. SQLite uses `NullPool`.
-
-Schema managed by Alembic with two migrations:
-1. `2dae871076fe` — initial schema (benchmarks + benchmark_results)
-2. `0002_add_cache_metrics` — cache columns (idempotent, per-column batch_alter_table with OperationalError fallback)
-
-Startup: `init_db()` (SQLAlchemy `create_all`) → `_run_alembic_migrations()` (stamp baseline → upgrade head). The dual approach handles both fresh DBs (create_all) and existing create_all DBs needing ALTER TABLE.
+**URL normalization**: `db_utils.normalize_db_url()` handles `postgres://` → `postgresql+psycopg://` for Fly.io compatibility.
 
 ## Cache Layer
 
-`backend/app/cache/` — response and embedding caches:
+| Component | Backend | TTL |
+|-----------|---------|-----|
+| Response cache | Redis / in-memory | 24 hours |
+| Embedding cache | Redis / in-memory | 7 days |
+| Provider info cache | In-memory (lru_cache) | 5 minutes |
 
-| Backend | When Used | Configuration |
-|---------|-----------|---------------|
-| Redis | `REDIS_URL` env var is set | Default in Docker Compose |
-| In-Memory | `REDIS_URL` is empty/Redis unreachable | Default in local dev |
+**Stampede prevention** (ADR-004): `_KeyLockRegistry` — per-key `asyncio.Lock` prevents concurrent identical provider calls.
 
-**Response cache** (`response_cache.py`): Caches `ProviderResponse` objects keyed by provider + model + prompt + temperature + max_tokens + system_prompt + seed + response_format + benchmark_config_version. TTL: 30 minutes (configurable).
-
-**Embedding cache** (`embedding_cache.py`): Caches embedding vectors keyed by provider + model + text. TTL: 24 hours.
-
-**BYOK guard**: Cache is disabled when client BYOK keys are active (`use_cache = benchmark_req.cache and not client_key` in `benchmarks.py:run_one()`). This prevents cross-user leakage (ADR-007).
-
-**Stampede prevention**: `_KeyLockRegistry` provides per-key `asyncio.Lock` — N concurrent requests for the same key trigger only 1 provider call, the other N-1 wait and re-check the cache (ADR-004).
-
-**API**: `GET /api/cache/stats`, `DELETE /api/cache` (clear all), CLI: `promptbench cache stats|clear|warm`.
-
-## BYOK (Bring Your Own Key)
-
-Users can supply their own API keys from the browser. Two phases:
-
-**Phase 1 — Per-request keys** (`client_keys` in `CreateBenchmark`): Keys are injected into a shallow-copied provider instance before `generate()`. Never persisted, never logged.
-
-**Phase 2 — Session-scoped keys** (`backend/app/session_keys.py`): `POST /api/session-key` stores keys in an in-memory `SessionKeyStore` with 30-minute inactivity TTL. Session ID is tracked via `pb_session` HttpOnly cookie. Keys are returned via `GET /api/session-key` (provider IDs only, never the keys themselves).
-
-Privacy invariants (ADR-003): keys never logged, provider error messages sanitized (`_sanitize_error` regex in `benchmarks.py`), keys excluded from cache/DB, `type="password"` on the frontend, never in localStorage.
+**BYOK isolation** (ADR-007): Cache disabled when BYOK keys are active to prevent cross-user leakage.
 
 ## Rate Limiting
 
-`slowapi` middleware using `get_remote_address`:
-- Global: 60 requests/minute
-- `POST /api/benchmarks`: 10/minute
+| Endpoint | Limit |
+|----------|-------|
+| Global | 60/min (slowapi) |
+| POST /api/benchmarks | 10/min |
 
-## Fly.io Production
+## GitHub Integrations
 
-`fly.toml`: single machine (`shared-cpu-1x`, 1024 MB) in `sin` region. HTTPS forced. Dockerfile at `backend/Dockerfile` (multi-stage: builds frontend, then serves via FastAPI + static files). Deploy via `.github/workflows/deploy.yml` (triggers on push to main + manual `workflow_dispatch`).
+| Service | Purpose |
+|---------|---------|
+| GitHub Actions CI | Backend tests (ruff + pytest), frontend (tsc + vitest) |
+| CodeRabbit | AI code review on PRs |
+| GitGuardian | Secret scanning |
+| Socket | Supply chain security |
+| Fly.io deploy | Auto-deploy on push to main |
 
-## CI/CD
+## Session Keys
 
-`.github/workflows/ci.yml`: runs on push/PR to main. Backend: ruff + pytest. Frontend: tsc + eslint. `.github/workflows/deploy.yml`: `flyctl deploy` on push to main.
+`SessionKeyStore` — in-memory session-scoped BYOK keys. Single process only (not shared across Uvicorn workers). Cookie `pb_session` tracks session identity. 30-minute inactivity TTL.

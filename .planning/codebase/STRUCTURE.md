@@ -4,145 +4,155 @@
 
 ```
 prompt-bench/
-├── backend/                          # FastAPI application
+├── backend/                          # Python FastAPI application
 │   ├── app/
-│   │   ├── main.py                   # FastAPI app, lifespan, middleware
-│   │   ├── config.py                 # Pydantic Settings (env vars)
-│   │   ├── database.py               # SQLAlchemy engine, session, init_db()
-│   │   ├── models.py                 # ORM: Benchmark, BenchmarkResult
-│   │   ├── schemas.py                # Pydantic: BenchmarkCreate, BenchmarkOut, etc.
-│   │   ├── pricing.py                # PRICING dict + calculate_cost()
-│   │   ├── limiter.py                # slowapi Limiter (60/min global)
-│   │   ├── session_keys.py           # In-memory SessionKeyStore (Phase 2 BYOK)
+│   │   ├── __init__.py
+│   │   ├── main.py                   # FastAPI app creation, lifespan, CORS, routers
+│   │   ├── config.py                 # Pydantic Settings (.env loading)
+│   │   ├── database.py              # SQLAlchemy engine, SessionLocal, init_db()
+│   │   ├── db_utils.py              # Shared: normalize_db_url()
+│   │   ├── models.py                # ORM: Benchmark, BenchmarkResult
+│   │   ├── schemas.py               # Pydantic: BenchmarkCreate, BenchmarkOut, ResultOut
+│   │   ├── pricing.py               # PRICING dict, calculate_cost()
+│   │   ├── limiter.py               # slowapi rate limiter
+│   │   ├── session_keys.py          # SessionKeyStore (Phase 2 BYOK)
 │   │   ├── routers/
-│   │   │   ├── benchmarks.py         # POST /benchmarks, GET /benchmarks, GET /benchmarks/{id}, DELETE
-│   │   │   ├── insights.py           # GET /insights (SQL-level aggregation)
-│   │   │   ├── providers.py          # GET /providers (cached provider list)
-│   │   │   ├── cache.py              # GET /cache/stats, DELETE /cache
-│   │   │   └── session_keys.py       # POST/DELETE /session-key
+│   │   │   ├── __init__.py
+│   │   │   ├── benchmarks.py        # POST/GET/DELETE /api/benchmarks
+│   │   │   ├── providers.py         # GET /api/providers
+│   │   │   ├── insights.py          # GET /api/insights
+│   │   │   ├── cache.py             # GET /api/cache/stats
+│   │   │   └── session_keys.py      # POST/DELETE /api/session-key
 │   │   ├── providers/
-│   │   │   ├── __init__.py           # PROVIDERS registry, get_providers_cached()
-│   │   │   ├── base.py               # BaseProvider(ABC), ModelInfo, ProviderResponse
-│   │   │   ├── common.py             # OpenAICompatibleProvider (shared SSE parsing)
-│   │   │   ├── openai.py             # OpenAIProvider
-│   │   │   ├── anthropic.py          # AnthropicProvider (custom SSE)
-│   │   │   ├── gemini.py             # GeminiProvider (custom SSE + URL auth)
-│   │   │   ├── openrouter.py         # OpenRouterProvider
-│   │   │   ├── ollama.py             # OllamaProvider (local, JSON-lines)
-│   │   │   ├── vllm.py               # VLLMProvider (local)
-│   │   │   └── model_lists.py        # Static + runtime-refreshed model IDs
-│   │   ├── cache/
-│   │   │   ├── __init__.py           # Public API exports
-│   │   │   ├── cache.py              # CacheBackend, InMemoryCache, RedisCache
-│   │   │   ├── response_cache.py     # ResponseCache, CacheInfo, KeyLockRegistry
-│   │   │   ├── embedding_cache.py    # EmbeddingCache, EmbeddingResult
-│   │   │   └── keys.py               # Cache key generators
-│   │   └── __init__.py
+│   │   │   ├── __init__.py          # PROVIDERS dict, get_provider()
+│   │   │   ├── base.py              # BaseProvider ABC, ModelInfo, ProviderResponse
+│   │   │   ├── common.py            # OpenAICompatibleProvider (shared SSE)
+│   │   │   ├── openai.py            # OpenAIProvider
+│   │   │   ├── anthropic.py         # AnthropicProvider (custom SSE)
+│   │   │   ├── gemini.py            # GeminiProvider (URL auth)
+│   │   │   ├── openrouter.py        # OpenRouterProvider
+│   │   │   ├── ollama.py            # OllamaProvider (local)
+│   │   │   ├── vllm.py              # VLLMProvider (local)
+│   │   │   └── model_lists.py       # Shared model lists, runtime refresh
+│   │   └── cache/
+│   │       ├── __init__.py
+│   │       ├── cache.py             # CacheBackend, RedisCache, InMemoryCache
+│   │       ├── response_cache.py    # ResponseCache + _KeyLockRegistry
+│   │       ├── embedding_cache.py   # EmbeddingCache
+│   │       └── keys.py              # response_cache_key(), embedding_cache_key()
 │   ├── alembic/
-│   │   ├── env.py                    # Migration environment (reads DATABASE_URL)
-│   │   ├── alembic.ini               # Base config (SQLite default)
-│   │   ├── script.py.mako            # Migration template
+│   │   ├── env.py                   # Migration environment (imports db_utils)
+│   │   ├── alembic.ini
+│   │   ├── script.py.mako
 │   │   └── versions/
 │   │       ├── 2dae871076fe_initial_schema.py
-│   │       └── 0002_add_cache_metrics.py  # Idempotent cache columns
+│   │       └── 0002_add_cache_metrics.py  # Idempotent: inspector-based
 │   ├── tests/
-│   │   ├── conftest.py               # Test fixtures (temp SQLite, TestClient)
-│   │   ├── test_providers.py         # Provider + BYOK auth header tests
-│   │   ├── test_benchmarks.py        # API endpoint + SSE parsing tests
-│   │   ├── test_cache.py             # Cache layer tests (fakeredis)
-│   │   └── test_migrations.py        # Alembic migration tests
-│   ├── pyproject.toml                # Dependencies, ruff config, pytest config
-│   ├── uv.lock                       # Locked dependency versions
-│   └── Dockerfile                    # Multi-stage: build frontend → backend + static
-├── frontend/                         # React 19 SPA
+│   │   ├── conftest.py              # Test fixtures, DB setup, app factory
+│   │   ├── test_providers.py        # Pricing, BYOK auth header tests (3 providers)
+│   │   ├── test_benchmarks.py       # Benchmark CRUD, concurrency
+│   │   ├── test_cache.py            # Cache hit/miss, stampede prevention
+│   │   └── test_migrations.py       # Migration tests
+│   ├── pyproject.toml
+│   ├── uv.lock
+│   └── Dockerfile
+├── frontend/                         # React SPA
 │   ├── src/
-│   │   ├── main.tsx                  # ReactDOM.createRoot, QueryClientProvider
-│   │   ├── App.tsx                   # Layout, sidebar, bottom tabs, routes
-│   │   ├── index.css                 # Tailwind + CSS custom properties (theme)
-│   │   ├── types/
-│   │   │   └── index.ts              # TypeScript interfaces (Provider, Benchmark, etc.)
-│   │   ├── lib/
-│   │   │   ├── api.ts                # fetch() wrapper, all API functions
-│   │   │   └── utils.ts              # cn(), money(), latency(), tokens()
+│   │   ├── main.tsx                 # React root + QueryClientProvider
+│   │   ├── App.tsx                  # Router, sidebar, bottom tabs, theme
+│   │   ├── index.css                # Tailwind + CSS custom properties
+│   │   ├── types/index.ts           # Shared TypeScript interfaces
+│   │   ├── lib/api.ts               # fetch wrapper, query keys, TanStack Query hooks
+│   │   ├── lib/utils.ts             # cn() utility
+│   │   ├── hooks/useMediaQuery.ts   # Responsive breakpoint
 │   │   ├── components/
-│   │   │   ├── ui/                   # shadcn/ui components (11 files)
-│   │   │   ├── ErrorBoundary.tsx      # React error boundary
-│   │   │   └── BenchmarkCacheSection.tsx  # Cache metrics display + CacheBadge
-│   │   ├── hooks/
-│   │   │   └── useMediaQuery.ts      # Responsive breakpoint hook
-│   │   ├── pages/
-│   │   │   ├── BenchmarkRun.tsx       # Prompt input + model selection
-│   │   │   ├── BenchmarkResults.tsx   # Results table + charts + cache section
-│   │   │   ├── CompareRuns.tsx        # Side-by-side run comparison
-│   │   │   ├── History.tsx            # Paginated benchmark list
-│   │   │   └── Insights.tsx           # Aggregate statistics cards
-│   │   ├── __tests__/
-│   │   │   └── BenchmarkResults.test.tsx  # Component rendering test
-│   │   └── test-setup.ts             # jest-dom matchers import
-│   ├── index.html                    # Vite entry point
-│   ├── vite.config.ts                # Vite config (+ @ alias, proxy)
-│   ├── vitest.config.ts              # Vitest config (jsdom, @ alias)
-│   ├── tsconfig.json                 # TypeScript config (strict, paths)
-│   ├── tailwind.config.js            # Tailwind CSS custom colors
-│   ├── postcss.config.js             # PostCSS plugins
-│   ├── eslint.config.js              # ESLint config (typescript-eslint)
-│   ├── package.json                  # Dependencies + scripts
-│   └── Dockerfile                    # Dev server (Node 24 Alpine)
-├── docs/
-│   ├── adr/                          # Architecture Decision Records (7 ADRs)
-│   │   ├── 001-response-embedding-cache.md
-│   │   ├── 002-provider-abstraction.md
-│   │   ├── 003-byok-architecture.md
-│   │   ├── 004-stampede-prevention.md
-│   │   ├── 005-cache-key-design.md
-│   │   ├── 006-frontend-testing.md
-│   │   └── 007-cache-byok-guard.md
-│   └── caching.md                    # Cache user documentation
+│   │   │   ├── ErrorBoundary.tsx
+│   │   │   ├── BenchmarkCacheSection.tsx  # Cache badges + latency chart
+│   │   │   └── ui/                  # shadcn/ui primitives
+│   │   └── pages/
+│   │       ├── BenchmarkRun.tsx      # Run page
+│   │       ├── BenchmarkResults.tsx  # Results page
+│   │       ├── CompareRuns.tsx       # Compare page
+│   │       ├── History.tsx           # History page
+│   │       └── Insights.tsx          # Insights page
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts               # Vite config + API proxy
+│   ├── vitest.config.ts             # Vitest config
+│   ├── tailwind.config.js
+│   ├── postcss.config.js
+│   ├── eslint.config.js
+│   ├── index.html
+│   └── Dockerfile
+├── docker-compose.yml               # Full stack: postgres + redis + backend + frontend
+├── fly.toml                         # Fly.io deployment config
+├── prek.toml                        # Pre-commit hooks (TOML format)
+├── justfile                         # Task runner
 ├── .github/workflows/
-│   ├── ci.yml                        # CI: ruff, pytest, tsc, eslint
-│   └── deploy.yml                    # CD: flyctl deploy on push to main
-├── docker-compose.yml                # Full stack: postgres, redis, backend, frontend
-├── fly.toml                          # Fly.io deployment config
-├── AGENTS.md                         # AI coding agent instructions
-├── README.md                         # Project README
-├── QUICK_START.md                    # Quick start guide
-├── justfile                          # Task runner commands
-└── .planning/
-    ├── codebase/                     # This codemap (7 documents)
-    └── handoffs/                     # Session handoff files
+│   ├── ci.yml                       # CI: ruff + pytest + tsc + vitest
+│   └── deploy.yml                   # Fly.io deploy on push to main
+├── .planning/codebase/              # Codemap documentation (7 files)
+├── docs/
+│   ├── caching.md                   # Cache architecture and usage guide
+│   └── adr/                         # Architecture Decision Records
+├── AGENTS.md                        # AI coding agent guide
+├── README.md
+├── QUICK_START.md
+└── LICENSE
 ```
-
-## Naming Conventions
-
-| Convention | Example |
-|---|---|
-| **Backend modules**: lowercase with underscores | `benchmarks.py`, `session_keys.py` |
-| **Backend classes**: PascalCase | `BaseProvider`, `BenchmarkResult` |
-| **Backend functions**: snake_case | `run_one()`, `_sanitize_error()` |
-| **Backend private helpers**: prefixed with `_` | `_run_alembic_migrations()` |
-| **Frontend components**: PascalCase, one per file | `BenchmarkRun.tsx` |
-| **Frontend utilities**: camelCase | `cn()`, `api.history()` |
-| **Frontend types**: PascalCase interfaces | `BenchmarkResult`, `CacheStats` |
-| **Database tables**: snake_case plural | `benchmarks`, `benchmark_results` |
-| **Database columns**: snake_case | `total_latency_ms`, `cache_hit` |
-| **Alembic migrations**: `NNNN_description.py` | `0002_add_cache_metrics.py` |
-| **ADR files**: `NNN-slug-name.md` | `003-byok-architecture.md` |
-| **Loggers**: `promptbench.module_name` | `promptbench.benchmarks` |
 
 ## Key Locations
 
-| What | Where |
-|------|-------|
+| Component | Path |
+|-----------|------|
 | App entry point | `backend/app/main.py` |
-| Startup migrations | `backend/app/main.py::_run_alembic_migrations()` |
-| Provider registry | `backend/app/providers/__init__.py::PROVIDERS` |
-| Pricing data | `backend/app/pricing.py::PRICING` |
-| Benchmark runner | `backend/app/routers/benchmarks.py::run_one()` |
-| BYOK key injection | `backend/app/routers/benchmarks.py::run_one()` (lines ~40-60) |
-| Cache layer | `backend/app/cache/response_cache.py` |
-| Session key store | `backend/app/session_keys.py::SessionKeyStore` |
+| Settings | `backend/app/config.py` |
+| DB config | `backend/app/database.py` |
+| DB utils | `backend/app/db_utils.py` |
+| Provider registration | `backend/app/providers/__init__.py` |
+| Model lists | `backend/app/providers/model_lists.py` |
+| Pricing | `backend/app/pricing.py` |
+| Cache | `backend/app/cache/` |
+| Migrations | `backend/alembic/` |
 | Frontend API client | `frontend/src/lib/api.ts` |
-| Frontend routes | `frontend/src/App.tsx` (Routes component) |
-| UI theme variables | `frontend/src/index.css` |
-| Test fixtures | `backend/tests/conftest.py` |
-| Migration env | `backend/alembic/env.py::get_url()` |
+| Frontend router | `frontend/src/App.tsx` |
+| CI config | `.github/workflows/ci.yml` |
+
+## Naming Conventions
+
+| Context | Pattern | Examples |
+|---------|---------|----------|
+| Provider IDs | lowercase, no spaces | `"openai"`, `"gemini"` |
+| Model IDs | lowercase with hyphens | `"gpt-4.1"`, `"claude-sonnet-5"` |
+| DB columns | snake_case | `cache_hit`, `total_latency_ms` |
+| API endpoints | kebab-case | `/api/session-key`, `/api/cache/stats` |
+| React components | PascalCase files | `BenchmarkCacheSection.tsx` |
+| Test files | `test_*.py` | `test_providers.py` |
+| Test classes/functions | `Test*` / `test_*` | `TestBYOKAuthHeader` |
+| Python modules | snake_case | `db_utils.py`, `model_lists.py` |
+
+## Routes (Frontend)
+
+| Path | Component | Lazy Loaded |
+|------|-----------|-------------|
+| `/` | `BenchmarkRun` | ✓ |
+| `/compare` | `CompareRuns` | ✓ |
+| `/history` | `History` | ✓ |
+| `/insights` | `Insights` | ✓ |
+| `/results/:id` | `BenchmarkResults` | ✓ |
+
+## API Routes
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/health` | Health check |
+| GET | `/api/providers` | List providers + models |
+| POST | `/api/benchmarks` | Create benchmark |
+| GET | `/api/benchmarks` | List history |
+| GET | `/api/benchmarks/{id}` | Get benchmark + results |
+| DELETE | `/api/benchmarks/{id}` | Delete benchmark |
+| GET | `/api/insights` | Aggregate statistics |
+| GET | `/api/cache/stats` | Cache statistics |
+| POST | `/api/session-key` | Save BYOK session key |
+| DELETE | `/api/session-key` | Clear BYOK session keys |
+| GET | `/api/session-key/providers` | List providers with saved keys |
