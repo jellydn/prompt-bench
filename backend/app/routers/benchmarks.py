@@ -222,7 +222,7 @@ def history(limit: int = 20, offset: int = 0, db: Session = Depends(get_db)):
                 prompt=b.prompt,
                 created_at=b.created_at,
                 model_count=len(b.results),
-                total_cost=sum(r.cost or 0 for r in b.results),
+                total_cost=sum(r.cost or 0 for r in b.results if not r.cache_hit),
                 total_tokens=sum((r.input_tokens or 0) + (r.output_tokens or 0) for r in b.results),
                 avg_latency_ms=sum(latencies) / len(latencies) if latencies else 0,
                 status=b.status,

@@ -89,3 +89,13 @@ export interface CreateBenchmark {
 export interface SessionKeyInfo {
   providers: string[];
 }
+
+export interface CacheStats {
+  backend: string;
+  entries: number;
+  hits: number;
+  misses: number;
+  hit_rate: number;
+  memory_usage: string;
+  avg_lookup_ms: number;
+}

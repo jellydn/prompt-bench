@@ -34,6 +34,11 @@ export default function BenchmarkResults() {
     queryFn: () => api.benchmark(id),
     enabled: !Number.isNaN(id),
   });
+  const statsQuery = useQuery({
+    queryKey: ["cacheStats"],
+    queryFn: api.cacheStats,
+    staleTime: 60_000,
+  });
   const back = () => navigate("/history");
   if (Number.isNaN(id)) return <p className="text-destructive">Invalid benchmark ID.</p>;
   if (q.isLoading) return <p>Loading results…</p>;
@@ -115,18 +120,24 @@ export default function BenchmarkResults() {
     output: r.output_tokens ?? 0,
   }));
   const hasCacheMetrics = good.some((r) => r.cache_hit != null);
-  const cacheBadge = (r: typeof good[number]) => (
-    <Badge
-      variant="default"
-      className={
-        r.cache_hit
-          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-          : ""
-      }
-    >
-      {r.cache_hit ? "Cache hit" : "Cache miss"}
-    </Badge>
-  );
+  const cacheBackend = statsQuery.data?.backend;
+  const cacheBadge = (r: typeof good[number]) => {
+    if (r.cache_hit == null) {
+      return <Badge variant="secondary">Cache disabled</Badge>;
+    }
+    return (
+      <Badge
+        variant="default"
+        className={
+          r.cache_hit
+            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+            : ""
+        }
+      >
+        {r.cache_hit ? "Cache hit" : "Cache miss"}
+      </Badge>
+    );
+  };
   return (
     <div className="space-y-6">
       <Button variant="ghost" onClick={back}>
@@ -202,7 +213,7 @@ export default function BenchmarkResults() {
                       <Badge variant={r.error ? "destructive" : "success"}>
                         {r.error ? "Error" : "Success"}
                       </Badge>
-                      {r.cache_hit != null && cacheBadge(r)}
+                      {cacheBadge(r)}
                     </span>
                   </TableCell>
                 </TableRow>
@@ -258,6 +269,11 @@ export default function BenchmarkResults() {
               <CardTitle className="flex items-center gap-2">
                 <Database className="size-5" />
                 Cache performance
+                {cacheBackend && (
+                  <Badge variant="secondary" className="ml-2 text-xs font-normal">
+                    {cacheBackend}
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -283,13 +299,7 @@ export default function BenchmarkResults() {
                         {r.provider} / {r.model}
                       </TableCell>
                       <TableCell>
-                        {r.cache_hit != null ? (
-                          <span className="space-x-1">
-                            {cacheBadge(r)}
-                          </span>
-                        ) : (
-                          <Badge variant="secondary">Disabled</Badge>
-                        )}
+                        {cacheBadge(r)}
                       </TableCell>
                       <TableCell>
                         {latency(r.provider_latency_ms)}
@@ -309,6 +319,21 @@ export default function BenchmarkResults() {
               <div className="grid gap-4 md:grid-cols-3">
                 {good.map((r) => {
                   if (r.cache_hit == null) return null;
+                  const latReduction =
+                    r.provider_latency_ms != null && r.provider_latency_ms > 0
+                      ? Math.round(
+                          Math.max(
+                            0,
+                            ((r.provider_latency_ms - (r.cache_lookup_ms ?? 0)) /
+                              r.provider_latency_ms) *
+                              100,
+                          ),
+                        )
+                      : 0;
+                  const latencySaved =
+                    r.provider_latency_ms != null
+                      ? Math.max(0, r.provider_latency_ms - (r.cache_lookup_ms ?? 0))
+                      : 0;
                   return (
                     <div
                       key={r.id}
@@ -321,12 +346,16 @@ export default function BenchmarkResults() {
                         <Zap className="size-4" />
                         <span>
                           {r.cache_hit
-                            ? "Cache hit — served from cache"
+                            ? `Cache hit — saved ${latency(latencySaved)} (${latReduction}% reduction)`
                             : `Cache miss — provider called (${latency(r.provider_latency_ms)})`}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <span>Provider cost: {money(r.cost)}</span>
+                        <span>
+                          {r.cache_hit
+                            ? `Cost avoided: ${money(r.cost)}`
+                            : `Provider cost: ${money(r.cost)}`}
+                        </span>
                       </div>
                     </div>
                   );

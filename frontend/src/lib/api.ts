@@ -1,6 +1,7 @@
 import type {
   Benchmark,
   BenchmarkHistoryItem,
+  CacheStats,
   CreateBenchmark,
   Insights,
   Provider,
@@ -43,4 +44,5 @@ export const api = {
       method: "DELETE",
     }),
   sessionKeys: () => request<SessionKeyInfo>("/api/session-key"),
+  cacheStats: () => request<CacheStats>("/api/cache/stats"),
 };

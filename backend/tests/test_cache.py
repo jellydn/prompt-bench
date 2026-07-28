@@ -339,7 +339,7 @@ class TestResponseCache:
         assert info1.cache_hit is False
         assert info2.cache_hit is True
         assert info2.cache_type == "response"
-        assert info2.provider_latency_ms == 0
+        assert info2.provider_latency_ms == r1.total_latency_ms  # preserved from first run
         assert r1.response_text == r2.response_text == "Hello"
 
     async def test_modified_prompt_is_miss(self):
@@ -463,7 +463,7 @@ class TestResponseCache:
         )
 
         _, hit_info = await cache.get_or_compute(_make_key("lat"), compute)
-        assert hit_info.provider_latency_ms == 0
+        assert hit_info.provider_latency_ms == miss_info.provider_latency_ms
         assert hit_info.total_latency_ms == hit_info.cache_lookup_ms
 
 
@@ -842,7 +842,7 @@ class TestBenchmarkEndpointCaching:
         assert res2["error"] is None
         assert res2["cache_hit"] is True
         assert res2["cache_type"] == "response"
-        assert res2["provider_latency_ms"] == 0
+        assert res2["provider_latency_ms"] == res1["provider_latency_ms"]
         assert res2["cache_lookup_ms"] is not None
         # Same output, served from cache
         assert res2["response_text"] == res1["response_text"]

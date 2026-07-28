@@ -78,14 +78,19 @@ class ResponseCache:
         if cached is not None:
             response = _deserialize_response(cached)
             if response is not None:
+                # Preserve the original provider latency from the first run
+                # so the frontend can compute latency reduction and savings.
+                original_latency = response.total_latency_ms or 0
                 info = CacheInfo(
                     cache_hit=True,
                     cache_type="response",
                     cache_lookup_ms=lookup_ms,
-                    provider_latency_ms=0,
+                    provider_latency_ms=original_latency,
                     total_latency_ms=lookup_ms,
                 )
-                logger.debug("Cache HIT key=%s lookup=%dms", key, lookup_ms)
+                logger.debug(
+                    "Cache HIT key=%s lookup=%dms original=%dms", key, lookup_ms, original_latency
+                )
                 return response, info
 
         # Miss — guard against stampede with a per-key lock.
@@ -98,16 +103,21 @@ class ResponseCache:
             if cached is not None:
                 response = _deserialize_response(cached)
                 if response is not None:
+                    original_latency = response.total_latency_ms or 0
                     return response, CacheInfo(
                         cache_hit=True,
                         cache_type="response",
                         cache_lookup_ms=lookup_ms,
-                        provider_latency_ms=0,
+                        provider_latency_ms=original_latency,
                         total_latency_ms=lookup_ms,
                     )
 
             response, info = await self._compute_and_measure(compute_fn, CacheInfo())
             info.cache_lookup_ms = lookup_ms
+            # Use the response's reported latency (not wall-clock) so cache-hit
+            # comparison uses the same source of truth as the serialized value.
+            if response.total_latency_ms:
+                info.provider_latency_ms = response.total_latency_ms
             info.total_latency_ms = info.provider_latency_ms + lookup_ms
 
             if _is_cacheable(response):
