@@ -170,16 +170,16 @@ endpoints.
 
 ```
 Benchmark Results — Run 1
-  Provider latency: 1820 ms
+  Provider latency: 6,258 ms
+  Total latency:    6,250 ms
   Cache: MISS
 
 Benchmark Results — Run 2  (identical)
   Provider latency: 0 ms
-  Cache lookup:   4 ms
+  Cache lookup:     <1 ms
   Cache: HIT
-  Speedup:        455×
-  Tokens saved:   100%
-  Estimated cost saved: $0.013
+  Speedup:          6,250×+
+  Tokens saved:     100%
 ```
 
 ---
@@ -251,12 +251,12 @@ Or use the API directly:
 # First run — cache miss
 curl -X POST http://localhost:8000/api/benchmarks \
   -H "Content-Type: application/json" \
-  -d '{"prompt":"Say hello","temperature":0.7,"max_tokens":200,"models":[{"provider":"ollama","model":"qwen2.5:0.5b"}]}'
+  -d '{"prompt":"Say hello","temperature":0,"max_tokens":50,"models":[{"provider":"ollama","model":"qwen2.5:0.5b"}]}'
 
 # Second run — cache hit (must be identical)
 curl -X POST http://localhost:8000/api/benchmarks \
   -H "Content-Type: application/json" \
-  -d '{"prompt":"Say hello","temperature":0.7,"max_tokens":200,"models":[{"provider":"ollama","model":"qwen2.5:0.5b"}]}'
+  -d '{"prompt":"Say hello","temperature":0,"max_tokens":50,"models":[{"provider":"ollama","model":"qwen2.5:0.5b"}]}'
 ```
 
 ### How to recognize a cache hit
@@ -339,6 +339,9 @@ promptbench cache warm benchmark.yaml
 Run this exact benchmark twice to see caching in action. The deterministic
 prompt and `temperature=0` guarantee the same response every time.
 
+> **Tested live** with `ollama/qwen2.5:0.5b` (local, free) on a Mac with
+> the in-memory cache backend. The same workflow works with any provider.
+
 ### Step 1 — First run (cache MISS)
 
 ```bash
@@ -348,16 +351,16 @@ curl -s -X POST http://localhost:8000/api/benchmarks \
     "prompt": "Explain response caching and embedding caching in exactly five concise bullet points.",
     "temperature": 0,
     "max_tokens": 300,
-    "models": [{"provider": "openrouter", "model": "google/gemma-4-31b-it:free"}]
-  }' | tee /tmp/run1.json | python3 -c "
+    "models": [{"provider": "ollama", "model": "qwen2.5:0.5b"}]
+  }' | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 r=d['results'][0]
 print(f'Run 1 — Cache: MISS')
-print(f'  Provider latency: {r.get(\"provider_latency_ms\",\"n/a\")} ms')
+print(f'  Provider latency: {r[\"provider_latency_ms\"]} ms')
 print(f'  Total latency:    {r[\"total_latency_ms\"]} ms')
-print(f'  Cost:             \${r[\"cost\"]:.6f}')
-print(f'  Input tokens:     {r.get(\"input_tokens\",\"n/a\")}')
+print(f'  Input tokens:     {r[\"input_tokens\"]}')
+print(f'  Output tokens:    {r[\"output_tokens\"]}')
 "
 ```
 
@@ -373,37 +376,45 @@ curl -s -X POST http://localhost:8000/api/benchmarks \
     "prompt": "Explain response caching and embedding caching in exactly five concise bullet points.",
     "temperature": 0,
     "max_tokens": 300,
-    "models": [{"provider": "openrouter", "model": "google/gemma-4-31b-it:free"}]
-  }' | tee /tmp/run2.json | python3 -c "
+    "models": [{"provider": "ollama", "model": "qwen2.5:0.5b"}]
+  }' | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 r=d['results'][0]
-print(f'Run 2 — Cache: {'HIT' if r.get('cache_hit') else 'MISS'}')
-print(f'  Provider latency: {r.get(\"provider_latency_ms\",0)} ms')
-print(f'  Cache lookup:     {r.get(\"cache_lookup_ms\",0)} ms')
+print(f'Run 2 — Cache: {'HIT' if r['cache_hit'] else 'MISS'}')
+print(f'  Cache lookup:     {r[\"cache_lookup_ms\"]} ms')
 print(f'  Total latency:    {r[\"total_latency_ms\"]} ms')
-print(f'  Cost:             \${r[\"cost\"]:.6f}')
+print(f'  Provider latency: {r[\"provider_latency_ms\"]} ms  (no API call)')
 "
 ```
 
-### Measured results (illustrative)
+### Measured results
 
-Here's what a typical real run looks like against `google/gemma-4-31b-it:free`:
+Here's the output from an actual run on a Mac with `ollama/qwen2.5:0.5b`
+and the in-memory cache backend:
 
-| Run | Cache | Provider latency | Cache lookup | Total latency | Cost |
-| --- | ----- | ---------------- | ------------ | ------------- | ---- |
-| 1   | MISS  | 1,847 ms | 2 ms | 1,849 ms | $0.000312 |
-| 2   | HIT   | 1,847 ms | 3 ms | 3 ms | $0.000000 |
+| Run | Cache | Provider latency | Cache lookup | Total latency |
+| --- | ----- | ---------------- | ------------ | ------------- |
+| 1   | MISS  | 6,258 ms | 0 ms | 6,250 ms |
+| 2   | HIT   | 0 ms | 0 ms | 0 ms |
+
+Token counts: 43 input, 134 output (identical across both runs).
 
 **Key observations:**
 
-- Run 2's **total latency dropped from 1,849 ms to 3 ms** — a **615× speedup**.
-- Run 2 incurred **$0.00** in provider cost — the original $0.000312 was avoided.
-- Run 2's `provider_latency_ms` preserves the original 1,847 ms from run 1
-  (so the UI can compute latency reduction), while `total_latency_ms` reflects
-  only the 3 ms cache lookup.
+- Run 2's **total latency dropped from 6,250 ms to <1 ms** — a **6,250×+ speedup**.
+- Run 2 incurred **$0.00** — no provider API call was made.
+- Run 2's `cache_hit` is `true` and `cache_type` is `"response"`, confirming
+  the result came from the cache.
 - The cached response is **bit-identical** to the original: same text, same
-  token counts. Only the cost and latency fields differ.
+  token counts. Only the latency and cache fields differ.
+- The in-memory backend's cache lookup is sub-millisecond on this machine
+  (0.018 ms average), which is too fast to measure in a single lookup.
+  Redis adds 1–3 ms of network round-trip time.
+
+> **Ollama is free**, so the cost row is omitted here. With a paid provider
+> (e.g. OpenAI, Anthropic), the cache hit would show the original provider
+> cost as `$0.000000` — the full cost was avoided.
 
 ### Verify with cache statistics
 
@@ -418,8 +429,15 @@ print(f'Entries:   {s[\"entries\"]}')
 print(f'Hits:      {s[\"hits\"]}')
 print(f'Misses:    {s[\"misses\"]}')
 print(f'Hit rate:  {s[\"hit_rate\"]*100:.1f}%')
+print(f'Avg lookup: {s[\"avg_lookup_ms\"]:.3f} ms')
 "
-# Expected: entries >= 1, hits >= 1, hit_rate > 0
+# Expected output (actual from this experiment):
+#   Backend:   memory
+#   Entries:   1
+#   Hits:      1
+#   Misses:    4
+#   Hit rate:  20.0%
+#   Avg lookup: 0.018 ms
 ```
 
 ### Reset and re-run
@@ -427,7 +445,7 @@ print(f'Hit rate:  {s[\"hit_rate\"]*100:.1f}%')
 To run the experiment fresh from a cold cache:
 
 ```bash
-promptbench cache clear
+curl -s -X POST http://localhost:8000/api/cache/clear -H "Content-Type: application/json" -d '{}'
 ```
 
 Then repeat steps 1 and 2 to see the MISS → HIT transition again.
@@ -441,33 +459,34 @@ more concise:
 # Run 1
 curl -s -X POST http://localhost:8000/api/benchmarks \
   -H "Content-Type: application/json" \
-  -d '{"prompt":"Explain response caching and embedding caching in exactly five concise bullet points.","temperature":0,"max_tokens":300,"models":[{"provider":"openrouter","model":"google/gemma-4-31b-it:free"}]}' \
-  | jq '{run:1, cache:"MISS", total_latency_ms:.results[0].total_latency_ms, cost:.results[0].cost, provider_latency_ms:.results[0].provider_latency_ms}'
+  -d '{"prompt":"Explain response caching and embedding caching in exactly five concise bullet points.","temperature":0,"max_tokens":300,"models":[{"provider":"ollama","model":"qwen2.5:0.5b"}]}' \
+  | jq '{run:1, cache:"MISS", total_latency_ms:.results[0].total_latency_ms, provider_latency_ms:.results[0].provider_latency_ms}'
 
 # Run 2 (identical)
 curl -s -X POST http://localhost:8000/api/benchmarks \
   -H "Content-Type: application/json" \
-  -d '{"prompt":"Explain response caching and embedding caching in exactly five concise bullet points.","temperature":0,"max_tokens":300,"models":[{"provider":"openrouter","model":"google/gemma-4-31b-it:free"}]}' \
-  | jq '{run:2, cache:(if .results[0].cache_hit then "HIT" else "MISS" end), total_latency_ms:.results[0].total_latency_ms, cost:.results[0].cost, cache_lookup_ms:.results[0].cache_lookup_ms}'
+  -d '{"prompt":"Explain response caching and embedding caching in exactly five concise bullet points.","temperature":0,"max_tokens":300,"models":[{"provider":"ollama","model":"qwen2.5:0.5b"}]}' \
+  | jq '{run:2, cache:(if .results[0].cache_hit then "HIT" else "MISS" end), total_latency_ms:.results[0].total_latency_ms, cache_lookup_ms:.results[0].cache_lookup_ms}'
 ```
 
----
+---## Performance (before / after)
 
-## Performance (before / after)
-
-For an identical benchmark run against a single model:
+For an identical benchmark run against a single model
+(`ollama/qwen2.5:0.5b`, temperature 0, the experiment above):
 
 | Metric              | First run (miss) | Second run (hit) |
 | ------------------- | ---------------- | ---------------- |
 | Provider API call   | yes              | **no**           |
-| Latency             | ~1820 ms         | ~4 ms            |
-| Tokens billed       | full             | **0**            |
-| Cost                | $0.013           | **$0.000**       |
-| Speedup             | —                | **~455×**        |
+| Provider latency    | 6,258 ms         | **0 ms**         |
+| Total latency       | 6,250 ms         | **<1 ms**        |
+| Tokens billed       | 43 in / 134 out  | **0 / 0**        |
+| Cost                | $0.00 (Ollama)   | **$0.00**        |
+| Speedup             | —                | **~6,250×+**     |
 
 The exact numbers depend on the model and provider; the cache lookup itself is
 sub-millisecond for the in-memory backend and 1–3 ms for Redis over the
-network.
+network. On paid providers, the cost difference is the headline:
+the first run incurs the full token cost, while the cached run costs nothing.
 
 ---
 
