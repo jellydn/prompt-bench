@@ -10,6 +10,7 @@ from .base import BaseProvider, ModelInfo, ProviderResponse
 
 class AnthropicProvider(BaseProvider):
     provider_id, provider_name = "anthropic", "Anthropic"
+    supports_byok = True
     model_names = {
         "claude-3-5-sonnet-20241022": "Claude 3.5 Sonnet",
         "claude-3-5-haiku-20241022": "Claude 3.5 Haiku",
@@ -18,7 +19,7 @@ class AnthropicProvider(BaseProvider):
 
     @property
     def is_configured(self):
-        return bool(get_settings().anthropic_api_key)
+        return bool(self._client_api_key or get_settings().anthropic_api_key)
 
     def get_models(self):
         return [ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.model_names.items()]
@@ -34,7 +35,7 @@ class AnthropicProvider(BaseProvider):
         if system_prompt:
             payload["system"] = system_prompt
         headers = {
-            "x-api-key": get_settings().anthropic_api_key,
+            "x-api-key": self._client_api_key or get_settings().anthropic_api_key,
             "anthropic-version": "2023-06-01",
         }
         started, first, parts, inp, out = time.perf_counter(), None, [], 0, 0

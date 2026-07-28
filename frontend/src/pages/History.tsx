@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2, History as HistoryIcon } from "lucide-react";
 import { api } from "@/lib/api";
@@ -6,6 +7,7 @@ import { money, latency, tokens } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -14,7 +16,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-export default function History({ onOpen }: { onOpen: (id: number) => void }) {
+export default function History() {
+  const navigate = useNavigate();
   const limit = 20;
   const [offset, setOffset] = useState(0);
   const qc = useQueryClient();
@@ -41,7 +44,34 @@ export default function History({ onOpen }: { onOpen: (id: number) => void }) {
               Could not load history: {q.error.message}
             </p>
           ) : q.isLoading ? (
-            <p>Loading history…</p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Prompt</TableHead>
+                  <TableHead>Models</TableHead>
+                  <TableHead>Cost</TableHead>
+                  <TableHead>Tokens</TableHead>
+                  <TableHead>Avg latency</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-8" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-14" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           ) : !q.data?.length ? (
             <div className="py-16 text-center text-muted-foreground">
               <HistoryIcon className="mx-auto mb-3 h-10 w-10" />
@@ -66,7 +96,7 @@ export default function History({ onOpen }: { onOpen: (id: number) => void }) {
                   <TableRow
                     key={x.id}
                     className="cursor-pointer"
-                    onClick={() => onOpen(x.id)}
+                    onClick={() => navigate(`/results/${x.id}`)}
                   >
                     <TableCell className="whitespace-nowrap">
                       {new Date(x.created_at).toLocaleString()}
@@ -108,22 +138,24 @@ export default function History({ onOpen }: { onOpen: (id: number) => void }) {
           )}
         </CardContent>
       </Card>
-      <div className="flex justify-end gap-2">
-        <Button
-          variant="outline"
-          disabled={!offset}
-          onClick={() => setOffset(Math.max(0, offset - limit))}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          disabled={(q.data?.length ?? 0) < limit}
-          onClick={() => setOffset(offset + limit)}
-        >
-          Next
-        </Button>
-      </div>
+      {q.isSuccess && (
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            disabled={!offset}
+            onClick={() => setOffset(Math.max(0, offset - limit))}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            disabled={(q.data?.length ?? 0) < limit}
+            onClick={() => setOffset(offset + limit)}
+          >
+            Next
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ export interface Provider {
   id: string;
   name: string;
   configured: boolean;
+  byok_eligible: boolean;
   base_url: string | null;
   models: ProviderModel[];
 }
@@ -77,4 +78,6 @@ export interface CreateBenchmark {
   temperature?: number;
   max_tokens?: number;
   models: { provider: string; model: string }[];
+  cache?: boolean;
+  client_keys?: Record<string, string>;
 }

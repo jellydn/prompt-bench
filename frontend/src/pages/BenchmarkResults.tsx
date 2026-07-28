@@ -1,3 +1,4 @@
+import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   BarChart,
@@ -23,22 +24,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-export default function BenchmarkResults({
-  id,
-  onBack,
-}: {
-  id: number;
-  onBack: () => void;
-}) {
+export default function BenchmarkResults() {
+  const { id: idParam } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const id = Number(idParam);
   const q = useQuery({
     queryKey: ["benchmark", id],
     queryFn: () => api.benchmark(id),
+    enabled: !Number.isNaN(id),
   });
+  const back = () => navigate("/history");
+  if (Number.isNaN(id)) return <p className="text-destructive">Invalid benchmark ID.</p>;
   if (q.isLoading) return <p>Loading results…</p>;
   if (q.isError)
     return (
       <div className="space-y-4">
-        <Button variant="ghost" onClick={onBack}>
+        <Button variant="ghost" onClick={back}>
           <ArrowLeft />
           Back
         </Button>
@@ -53,7 +54,7 @@ export default function BenchmarkResults({
   if (good.length === 0) {
     return (
       <div className="space-y-6">
-        <Button variant="ghost" onClick={onBack}>
+        <Button variant="ghost" onClick={back}>
           <ArrowLeft />
           Back to history
         </Button>
@@ -114,7 +115,7 @@ export default function BenchmarkResults({
   }));
   return (
     <div className="space-y-6">
-      <Button variant="ghost" onClick={onBack}>
+      <Button variant="ghost" onClick={back}>
         <ArrowLeft />
         Back to history
       </Button>

@@ -10,6 +10,7 @@ from .base import BaseProvider, ModelInfo, ProviderResponse
 
 class GeminiProvider(BaseProvider):
     provider_id, provider_name = "gemini", "Google Gemini"
+    supports_byok = True
     model_names = {
         "gemini-1.5-pro": "Gemini 1.5 Pro",
         "gemini-1.5-flash": "Gemini 1.5 Flash",
@@ -18,7 +19,7 @@ class GeminiProvider(BaseProvider):
 
     @property
     def is_configured(self):
-        return bool(get_settings().gemini_api_key)
+        return bool(self._client_api_key or get_settings().gemini_api_key)
 
     def get_models(self):
         return [ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.model_names.items()]
@@ -45,7 +46,7 @@ class GeminiProvider(BaseProvider):
             client.stream(
                 "POST",
                 url,
-                params={"key": get_settings().gemini_api_key, "alt": "sse"},
+                params={"key": self._client_api_key or get_settings().gemini_api_key, "alt": "sse"},
                 json=body,
             ) as response,
         ):

@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Play, LoaderCircle, Server } from "lucide-react";
+import { Play, LoaderCircle, Server, Key, Eye, EyeOff } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,28 +16,37 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
-export default function BenchmarkRun({
-  onComplete,
-}: {
-  onComplete: (id: number) => void;
-}) {
+import { Skeleton } from "@/components/ui/skeleton";
+export default function BenchmarkRun() {
+  const navigate = useNavigate();
   const [prompt, setPrompt] = useState("");
   const [system, setSystem] = useState("");
   const [temp, setTemp] = useState(0.7);
   const [max, setMax] = useState(1000);
   const [selected, setSelected] = useState<string[]>([]);
+  const [clientKeys, setClientKeys] = useState<Record<string, string>>({});
+  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const providers = useQuery({
     queryKey: ["providers"],
     queryFn: api.providers,
   });
   const run = useMutation({
     mutationFn: api.createBenchmark,
-    onSuccess: (b) => onComplete(b.id),
+    onSuccess: (b) => navigate(`/results/${b.id}`, { replace: true }),
   });
   const toggle = (key: string) =>
     setSelected((s) =>
       s.includes(key) ? s.filter((x) => x !== key) : [...s, key],
     );
+  const hasClientKey = (providerId: string) =>
+    (clientKeys[providerId]?.trim().length ?? 0) > 0;
+  const isConfigured = (p: { id: string; configured: boolean }) =>
+    p.configured || hasClientKey(p.id);
+  const maskKey = (key: string) =>
+    key.length > 8 ? `${key.slice(0, 4)}${'•'.repeat(key.length - 8)}${key.slice(-4)}` : '••••••••';
+  const nonEmptyClientKeys = Object.fromEntries(
+    Object.entries(clientKeys).filter(([, v]) => v.trim()),
+  );
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
@@ -64,11 +74,12 @@ export default function BenchmarkRun({
             />
           </div>
           <div className="space-y-2">
-            <Label>
+            <Label htmlFor="system-prompt">
               System prompt{" "}
               <span className="text-muted-foreground">(optional)</span>
             </Label>
             <Textarea
+              id="system-prompt"
               value={system}
               onChange={(e) => setSystem(e.target.value)}
               placeholder="You are a clear, concise assistant."
@@ -76,8 +87,9 @@ export default function BenchmarkRun({
           </div>
           <div className="grid gap-6 sm:grid-cols-2">
             <div className="space-y-3">
-              <Label>Temperature: {temp.toFixed(1)}</Label>
+              <Label htmlFor="temperature">Temperature: {temp.toFixed(1)}</Label>
               <Slider
+                id="temperature"
                 min={0}
                 max={2}
                 step={0.1}
@@ -86,8 +98,9 @@ export default function BenchmarkRun({
               />
             </div>
             <div className="space-y-2">
-              <Label>Max tokens</Label>
+              <Label htmlFor="max-tokens">Max tokens</Label>
               <Input
+                id="max-tokens"
                 type="number"
                 min={1}
                 value={max}
@@ -105,46 +118,102 @@ export default function BenchmarkRun({
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
-          {providers.isLoading && <p>Loading providers…</p>}
+          {providers.isLoading && (
+            <>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-lg border p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Skeleton className="h-4 w-4 rounded-sm" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                  <Skeleton className="mb-3 h-7 w-full" />
+                  <div className="flex flex-wrap gap-2">
+                    <Skeleton className="h-7 w-16 rounded-full" />
+                    <Skeleton className="h-7 w-20 rounded-full" />
+                    <Skeleton className="h-7 w-14 rounded-full" />
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
           {providers.isError && (
             <p className="text-destructive">
               Could not load providers: {providers.error.message}
             </p>
           )}
-          {providers.data?.map((p) => (
+          {providers.data?.map((p) => {
+            const conf = isConfigured(p);
+            return (
             <div
               key={p.id}
-              title={!p.configured ? "API key not set" : undefined}
+              title={!conf ? "API key not set" : undefined}
               className={cn(
                 "rounded-lg border p-4",
-                !p.configured && "cursor-not-allowed opacity-45",
+                !conf && "cursor-not-allowed opacity-45",
               )}
             >
               <div className="mb-3 flex items-center gap-2 font-semibold">
                 <Server className="h-4 w-4" />
                 {p.name}
                 <span className="ml-auto text-xs text-muted-foreground">
-                  {p.configured ? "Configured" : "API key not set"}
+                  {p.configured
+                    ? "Configured"
+                    : hasClientKey(p.id)
+                      ? "Your key"
+                      : "API key not set"}
                 </span>
               </div>
+              {/* BYOK key input — shown for eligible providers not server-configured */}
+              {!p.configured && p.byok_eligible && (
+                <div className="mb-3 flex items-center gap-2">
+                  <Key className="h-3.5 w-3.5 text-muted-foreground" />
+                  <input
+                    type={showKeys[p.id] ? "text" : "password"}
+                    className="flex-1 rounded border bg-background px-2 py-1 text-xs font-mono"
+                    placeholder={`${p.name} API key…`}
+                    aria-label={`${p.name} API key`}
+                    value={clientKeys[p.id] || ""}
+                    onChange={(e) =>
+                      setClientKeys((prev) => ({ ...prev, [p.id]: e.target.value }))
+                    }
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-foreground"
+                    onClick={() =>
+                      setShowKeys((prev) => ({ ...prev, [p.id]: !prev[p.id] }))
+                    }
+                    title={showKeys[p.id] ? "Hide key" : "Show key"}
+                  >
+                    {showKeys[p.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              )}
+              {hasClientKey(p.id) && !p.configured && !showKeys[p.id] && (
+                <p className="mb-2 text-[10px] text-muted-foreground">
+                  {maskKey(clientKeys[p.id])}
+                </p>
+              )}
               <div className="flex flex-wrap gap-2">
                 {p.models.map((m) => {
-                  const key = `${p.id}:${m.id}`;
+                  const k = `${p.id}:${m.id}`;
                   return (
                     <label
-                      key={key}
+                      key={k}
                       className={cn(
                         "cursor-pointer rounded-full border px-3 py-1.5 text-sm",
-                        selected.includes(key) &&
+                        selected.includes(k) &&
                           "border-primary bg-primary text-primary-foreground",
                       )}
                     >
                       <input
                         className="sr-only"
                         type="checkbox"
-                        disabled={!p.configured}
-                        checked={selected.includes(key)}
-                        onChange={() => toggle(key)}
+                        disabled={!conf}
+                        checked={selected.includes(k)}
+                        onChange={() => toggle(k)}
                       />
                       {m.name}
                     </label>
@@ -152,7 +221,7 @@ export default function BenchmarkRun({
                 })}
               </div>
             </div>
-          ))}
+          )})}
         </CardContent>
       </Card>
       {run.isError && (
@@ -173,6 +242,9 @@ export default function BenchmarkRun({
               const [provider, model] = x.split(":");
               return { provider, model };
             }),
+            ...(Object.keys(nonEmptyClientKeys).length > 0
+              ? { client_keys: nonEmptyClientKeys }
+              : {}),
           })
         }
       >

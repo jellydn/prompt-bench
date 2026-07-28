@@ -6,6 +6,7 @@ from .model_lists import VLLM_MODELS
 class VLLMProvider(OpenAICompatibleProvider):
     provider_id, provider_name = "vllm", "vLLM"
     always_configured = True
+    byok_eligible = False
     model_names = {m: m for m in VLLM_MODELS}
 
     @property

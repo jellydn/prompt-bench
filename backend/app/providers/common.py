@@ -12,11 +12,12 @@ class OpenAICompatibleProvider(BaseProvider):
     base_url = ""
     model_names: dict[str, str] = {}
     always_configured = False
+    supports_byok = True
     extra_headers: dict[str, str] = {}
 
     @property
     def is_configured(self) -> bool:
-        return self.always_configured or bool(self.api_key)
+        return self.always_configured or bool(self._client_api_key or self.api_key)
 
     def get_models(self):
         return [
@@ -28,7 +29,8 @@ class OpenAICompatibleProvider(BaseProvider):
         messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + [
             {"role": "user", "content": prompt}
         ]
-        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        api_key = self._client_api_key or self.api_key
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         headers = {**headers, **self.extra_headers}
         started = time.perf_counter()
         first = None
