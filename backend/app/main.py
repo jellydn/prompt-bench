@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from .config import settings
 from .database import init_db
 from .limiter import limiter
-from .routers import benchmarks, cache, insights, providers
+from .routers import benchmarks, cache, insights, providers, session_keys
 
 # Configure structured logging for the application
 logging.basicConfig(
@@ -72,6 +72,7 @@ app.include_router(providers.router, prefix="/api")
 app.include_router(benchmarks.router, prefix="/api")
 app.include_router(insights.router, prefix="/api")
 app.include_router(cache.router, prefix="/api")
+app.include_router(session_keys.router, prefix="/api")
 
 
 @app.get("/api/health")
