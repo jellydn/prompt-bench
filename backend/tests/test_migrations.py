@@ -70,11 +70,15 @@ def test_downgrade_preserves_non_cache_data():  # noqa: PLR0915
 
     """Downgrade from 0002→0001 should drop cache columns but keep other data.
 
-    On PostgreSQL, batch_alter_table creates a temp table, copies data,
-    drops the old table, and renames.  This test verifies that the
-    copy-rename cycle preserves non-cache columns (id, benchmark_id,
-    provider, model, etc.) and that re-upgrading restores the cache
-    columns as nullable.
+    Both SQLite and PostgreSQL use a temp-table-copy-rename cycle during
+    ``batch_alter_table``, so this test (which runs on SQLite in CI)
+    validates the data-preservation path for both dialects.  We verify
+    that non-cache columns survive the downgrade and that re-upgrading
+    restores the cache columns as NULL.
+
+    Note: this test does not exercise PostgreSQL-specific transactional
+    DDL or constraint behavior.  A CI job running against PostgreSQL
+    should be added for full coverage.
     """
     with tempfile.NamedTemporaryFile(suffix=".test.db", delete=False) as f:
         db_path = f.name
@@ -82,6 +86,7 @@ def test_downgrade_preserves_non_cache_data():  # noqa: PLR0915
 
     alembic_cfg = Config("alembic.ini")
     now = datetime.now(UTC)
+    engine = None
 
     try:
         os.environ["ALEMBIC_TEST_URL"] = db_url
@@ -188,7 +193,8 @@ def test_downgrade_preserves_non_cache_data():  # noqa: PLR0915
             assert row.provider_latency_ms is None
 
     finally:
-        engine.dispose()
+        if engine is not None:
+            engine.dispose()
         os.unlink(db_path)
         # WAL journal sidecars (created by PRAGMA journal_mode=WAL).
         with contextlib.suppress(OSError):
