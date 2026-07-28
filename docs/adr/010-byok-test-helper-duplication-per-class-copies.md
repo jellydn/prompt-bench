@@ -86,12 +86,6 @@ Key design: `_capture_transport` and `_patched_client` are `@classmethod` so `cl
 
 ## Consequences
 
-### What was NOT extracted
-
-- `_sse_body` — each provider has a different SSE stream format and must remain in its own test class.
-
-## Consequences
-
 ### Positive
 
 - 3 duplicate copies removed (~30 lines saved), single source of truth for transport/patcher/mock helpers
