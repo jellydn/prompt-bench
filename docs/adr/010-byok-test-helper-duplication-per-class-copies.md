@@ -8,32 +8,19 @@ Accepted
 
 ## Context
 
-`backend/tests/test_providers.py` contains three BYOK wire-level test classes — `TestBYOKAuthHeader` (OpenAI), `TestBYOKAnthropicAuthHeader` (Anthropic), and `TestBYOKGeminiAuthHeader` (Gemini) — totalling 18 tests. Each class defines three identical static/class methods:
+`backend/tests/test_providers.py` contains three BYOK wire-level test classes — `TestBYOKAuthHeader` (OpenAI), `TestBYOKAnthropicAuthHeader` (Anthropic), and `TestBYOKGeminiAuthHeader` (Gemini) — totalling 18 tests. Each class defined three identical helpers, differing only in the hardcoded class reference:
 
 ```python
+# BEFORE extraction (duplicated in 3 classes):
 @staticmethod
 def _capture_transport(captured: dict):
-    """Return an httpx.MockTransport that writes request headers into *captured*."""
     def handler(request: httpx.Request) -> httpx.Response:
         captured["headers"] = dict(request.headers)
-        captured["body"] = request.content
-        return httpx.Response(200, text=cls._sse_body)
+        return httpx.Response(200, text=TestBYOKAuthHeader._sse_body)
     return httpx.MockTransport(handler)
-
-@staticmethod
-def _patched_client(captured: dict):
-    """Return an AsyncClient subclass that injects our capture transport."""
-    class _PC(httpx.AsyncClient):
-        def __init__(self, *a, **kw):
-            kw["transport"] = cls._capture_transport(captured)
-            super().__init__(*a, **kw)
-    return _PC
-
-@staticmethod
-def _mock_settings(**kw):
-    """Return a mock Settings object with the given attributes."""
-    return Mock(**kw)
 ```
+
+This was ~30 lines duplicated across three classes. A new provider with BYOK tests would add a fourth copy.
 
 The only difference between classes is `_sse_body` — each provider has a different SSE stream format (OpenAI delta chunks, Anthropic content_block_delta events, Gemini candidates/parts).
 
