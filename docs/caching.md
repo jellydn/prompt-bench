@@ -334,6 +334,75 @@ promptbench cache warm benchmark.yaml
 
 ---
 
+## Reproducible cache experiment
+
+Run this exact benchmark twice to see caching in action. The deterministic
+prompt and `temperature=0` guarantee the same response every time.
+
+### Step 1 — First run (cache MISS)
+
+```bash
+curl -X POST http://localhost:8000/api/benchmarks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Explain response caching and embedding caching in exactly five concise bullet points.",
+    "temperature": 0,
+    "max_tokens": 300,
+    "models": [{"provider": "openrouter", "model": "google/gemma-4-31b-it:free"}]
+  }'
+```
+
+### Step 2 — Second run (cache HIT)
+
+Run the **exact same** request again. The response is served from cache —
+no provider API call, no token cost.
+
+```bash
+curl -X POST http://localhost:8000/api/benchmarks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Explain response caching and embedding caching in exactly five concise bullet points.",
+    "temperature": 0,
+    "max_tokens": 300,
+    "models": [{"provider": "openrouter", "model": "google/gemma-4-31b-it:free"}]
+  }'
+```
+
+### Expected output
+
+| Run | Cache | Provider called | Total latency | Provider cost |
+| --- | ----- | --------------- | ------------- | ------------- |
+| 1   | MISS  | Yes             | measured      | measured      |
+| 2   | HIT   | No              | measured (fast) | $0.000000   |
+
+Exact latencies depend on your network and the model. Typical results:
+
+| Metric | Run 1 (MISS) | Run 2 (HIT) |
+| ------ | ------------ | ----------- |
+| Provider latency | 800–3000 ms | 0 ms |
+| Cache lookup | ~1 ms | ~1 ms |
+| Total latency | 800–3000 ms | ~1–5 ms |
+| Input tokens | model-dependent | 0 |
+| Output tokens | model-dependent | 0 |
+| Cost | model-dependent | $0.000000 |
+
+After both runs, inspect the cache statistics:
+
+```bash
+curl http://localhost:8000/api/cache/stats | python3 -m json.tool
+# Expected: entries >= 1, hits >= 1, hit_rate > 0
+```
+
+To re-run the experiment fresh, clear the cache first:
+
+```bash
+promptbench cache clear
+```
+
+Then repeat steps 1 and 2 to see the MISS → HIT transition again.
+
+---
+
 ## Performance (before / after)
 
 For an identical benchmark run against a single model:
