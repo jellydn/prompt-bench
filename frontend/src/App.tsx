@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useState } from "react";
+import { Routes, Route, NavLink } from "react-router-dom";
 import {
   Activity,
   History as HistoryIcon,
@@ -15,27 +16,24 @@ const BenchmarkRun = lazy(() => import("@/pages/BenchmarkRun"));
 const BenchmarkResults = lazy(() => import("@/pages/BenchmarkResults"));
 const History = lazy(() => import("@/pages/History"));
 const Insights = lazy(() => import("@/pages/Insights"));
-type Page = "run" | "results" | "history" | "insights";
+
 export default function App() {
-  const [page, setPage] = useState<Page>("run");
-  const [id, setId] = useState<number>();
   const [dark, setDark] = useState(
     () => localStorage.getItem("theme") === "dark",
   );
   const [open, setOpen] = useState(false);
+
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
     localStorage.setItem("theme", dark ? "dark" : "light");
   }, [dark]);
-  const openResult = (x: number) => {
-    setId(x);
-    setPage("results");
-  };
+
   const nav = [
-    { id: "run" as Page, label: "Run Benchmark", icon: Play },
-    { id: "history" as Page, label: "History", icon: HistoryIcon },
-    { id: "insights" as Page, label: "Insights", icon: TrendingUp },
+    { to: "/", label: "Run Benchmark", icon: Play, end: true },
+    { to: "/history", label: "History", icon: HistoryIcon },
+    { to: "/insights", label: "Insights", icon: TrendingUp },
   ];
+
   return (
     <div className="min-h-screen bg-muted/30">
       <header className="fixed inset-x-0 top-0 z-20 flex h-16 items-center border-b bg-background px-4 md:hidden">
@@ -51,33 +49,35 @@ export default function App() {
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <button
+        <NavLink
+          to="/"
           className="mb-8 flex items-center gap-3 text-xl font-bold"
-          onClick={() => setPage("run")}
+          onClick={() => setOpen(false)}
         >
           <span className="rounded-lg bg-primary p-2 text-primary-foreground">
             <Activity />
           </span>
           PromptBench
-        </button>
+        </NavLink>
         <nav className="space-y-1">
           {nav.map((n) => (
-            <button
-              key={n.id}
-              onClick={() => {
-                setPage(n.id);
-                setOpen(false);
-              }}
-              className={cn(
-                "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium",
-                page === n.id || (page === "results" && n.id === "history")
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
+            <NavLink
+              key={n.to}
+              to={n.to}
+              end={n.end}
+              onClick={() => setOpen(false)}
+              className={({ isActive }) =>
+                cn(
+                  "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium",
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                )
+              }
             >
               <n.icon className="h-4 w-4" />
               {n.label}
-            </button>
+            </NavLink>
           ))}
         </nav>
         <div className="absolute bottom-5 left-5 right-5">
@@ -106,12 +106,12 @@ export default function App() {
             </div>
           }
         >
-          {page === "run" && <BenchmarkRun onComplete={openResult} />}{" "}
-          {page === "history" && <History onOpen={openResult} />}{" "}
-          {page === "insights" && <Insights onOpen={openResult} />}{" "}
-          {page === "results" && id != null && (
-            <BenchmarkResults id={id} onBack={() => setPage("history")} />
-          )}
+          <Routes>
+            <Route path="/" element={<BenchmarkRun />} />
+            <Route path="/history" element={<History />} />
+            <Route path="/insights" element={<Insights />} />
+            <Route path="/results/:id" element={<BenchmarkResults />} />
+          </Routes>
         </Suspense>
       </main>
     </div>

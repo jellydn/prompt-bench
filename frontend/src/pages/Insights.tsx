@@ -1,10 +1,12 @@
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { DollarSign, Clock, TrendingUp, Zap } from "lucide-react";
 import { api } from "@/lib/api";
 import { money, latency } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-export default function Insights({ onOpen }: { onOpen: (id: number) => void }) {
+export default function Insights() {
+  const navigate = useNavigate();
   const q = useQuery({ queryKey: ["insights"], queryFn: api.insights });
   const x = q.data;
   const cards = x
@@ -21,7 +23,7 @@ export default function Insights({ onOpen }: { onOpen: (id: number) => void }) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onOpen(x.most_expensive_prompt!.benchmark_id)}
+                onClick={() => navigate(`/results/${x.most_expensive_prompt!.benchmark_id}`)}
               >
                 View benchmark
               </Button>

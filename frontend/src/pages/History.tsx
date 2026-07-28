@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2, History as HistoryIcon } from "lucide-react";
 import { api } from "@/lib/api";
@@ -14,7 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-export default function History({ onOpen }: { onOpen: (id: number) => void }) {
+export default function History() {
+  const navigate = useNavigate();
   const limit = 20;
   const [offset, setOffset] = useState(0);
   const qc = useQueryClient();
@@ -66,7 +68,7 @@ export default function History({ onOpen }: { onOpen: (id: number) => void }) {
                   <TableRow
                     key={x.id}
                     className="cursor-pointer"
-                    onClick={() => onOpen(x.id)}
+                    onClick={() => navigate(`/results/${x.id}`)}
                   >
                     <TableCell className="whitespace-nowrap">
                       {new Date(x.created_at).toLocaleString()}

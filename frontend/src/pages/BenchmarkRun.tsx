@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Play, LoaderCircle, Server, Key, Eye, EyeOff } from "lucide-react";
 import { api } from "@/lib/api";
@@ -15,11 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
-export default function BenchmarkRun({
-  onComplete,
-}: {
-  onComplete: (id: number) => void;
-}) {
+export default function BenchmarkRun() {
+  const navigate = useNavigate();
   const [prompt, setPrompt] = useState("");
   const [system, setSystem] = useState("");
   const [temp, setTemp] = useState(0.7);
@@ -33,7 +31,7 @@ export default function BenchmarkRun({
   });
   const run = useMutation({
     mutationFn: api.createBenchmark,
-    onSuccess: (b) => onComplete(b.id),
+    onSuccess: (b) => navigate(`/results/${b.id}`, { replace: true }),
   });
   const toggle = (key: string) =>
     setSelected((s) =>
