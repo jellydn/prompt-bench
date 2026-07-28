@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { Routes, Route, NavLink } from "react-router-dom";
 import {
   Activity,
+  GitCompare,
   History as HistoryIcon,
   Play,
   TrendingUp,
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 
 const BenchmarkRun = lazy(() => import("@/pages/BenchmarkRun"));
 const BenchmarkResults = lazy(() => import("@/pages/BenchmarkResults"));
+const CompareRuns = lazy(() => import("@/pages/CompareRuns"));
 const History = lazy(() => import("@/pages/History"));
 const Insights = lazy(() => import("@/pages/Insights"));
 
@@ -30,6 +32,7 @@ export default function App() {
 
   const nav = [
     { to: "/", label: "Run Benchmark", icon: Play, end: true },
+    { to: "/compare", label: "Compare", icon: GitCompare },
     { to: "/history", label: "History", icon: HistoryIcon },
     { to: "/insights", label: "Insights", icon: TrendingUp },
   ];
@@ -111,6 +114,7 @@ export default function App() {
             <Route path="/history" element={<History />} />
             <Route path="/insights" element={<Insights />} />
             <Route path="/results/:id" element={<BenchmarkResults />} />
+            <Route path="/compare" element={<CompareRuns />} />
           </Routes>
         </Suspense>
       </main>
