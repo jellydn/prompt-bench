@@ -150,6 +150,16 @@ PromptBench caches LLM responses and embeddings to speed up repeated benchmark
 runs and eliminate provider cost for cached results. Redis is the primary
 backend with an automatic in-memory fallback when Redis is unavailable.
 
+**Frontend visibility:** After running a benchmark, the results page shows:
+- **Cache hit/miss badges** next to each result's status badge
+- **Cache performance card** — side-by-side comparison of provider latency,
+  cache lookup time, total latency, and cost
+- **Latency breakdown chart** — stacked bar chart comparing provider vs cache
+  lookup latency per model
+
+**How to verify caching:** Run the same benchmark twice. The second run will
+show a green "Cache hit" badge, $0.000000 cost, and 0ms provider latency.
+
 ```bash
 # backend/.env
 REDIS_URL=redis://localhost:6379/0   # leave empty for in-memory cache
@@ -206,14 +216,19 @@ curl -X POST http://localhost:8000/api/benchmarks -H 'Content-Type: application/
 
 ## API Overview
 
-| Method | Endpoint               | Description                 |
-| ------ | ---------------------- | --------------------------- |
-| GET    | `/api/providers`       | List providers and models   |
-| POST   | `/api/benchmarks`      | Run a benchmark (supports `client_keys` for BYOK) |
-| GET    | `/api/benchmarks`      | List benchmark history      |
-| GET    | `/api/benchmarks/{id}` | Get a single benchmark      |
-| DELETE | `/api/benchmarks/{id}` | Delete a benchmark          |
-| GET    | `/api/insights`        | Cost & performance insights |
+| Method | Endpoint                | Description                                      |
+| ------ | ----------------------- | ------------------------------------------------ |
+| GET    | `/api/providers`        | List providers and models                        |
+| POST   | `/api/benchmarks`       | Run a benchmark (supports `client_keys` for BYOK) |
+| GET    | `/api/benchmarks`       | List benchmark history                           |
+| GET    | `/api/benchmarks/{id}`  | Get a single benchmark                           |
+| DELETE | `/api/benchmarks/{id}`  | Delete a benchmark                               |
+| GET    | `/api/insights`         | Cost & performance insights                      |
+| GET    | `/api/cache/stats`      | Cache statistics (backend, entries, hit rate)     |
+| DELETE | `/api/cache`            | Clear all cache entries (or `?prefix=` subset)    |
+| POST   | `/api/session-key`      | Store a BYOK key for the current session         |
+| DELETE | `/api/session-key`      | Clear all session-scoped BYOK keys               |
+| GET    | `/api/session-key`      | List providers with saved session keys            |
 
 ## Author
 

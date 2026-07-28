@@ -159,6 +159,32 @@ with SessionLocal() as db:
 EOF
 ```
 
+## ⚡ Caching — run twice, pay once
+
+PromptBench caches responses automatically. Run the same benchmark twice and
+the second run is served from cache with **$0 cost and 0ms provider latency**.
+
+```bash
+# First run — cache MISS (provider is called)
+curl -X POST http://localhost:8000/api/benchmarks \
+  -H 'Content-Type: application/json' \
+  -d '{"prompt":"Say hello","temperature":0.7,"max_tokens":200,"models":[{"provider":"ollama","model":"qwen2.5:0.5b"}]}'
+
+# Second run — cache HIT (identical request, served instantly)
+curl -X POST http://localhost:8000/api/benchmarks \
+  -H 'Content-Type: application/json' \
+  -d '{"prompt":"Say hello","temperature":0.7,"max_tokens":200,"models":[{"provider":"ollama","model":"qwen2.5:0.5b"}]}'
+
+# Check cache stats
+curl http://localhost:8000/api/cache/stats | python3 -m json.tool
+```
+
+In the UI, look for the **Cache hit** badge and the **Cache performance**
+card showing provider vs cache lookup latency side-by-side.
+
+See [docs/caching.md](docs/caching.md) for architecture, invalidation rules,
+and Redis configuration.
+
 ## 🧪 Example Benchmark Workflow
 
 ### 1. Check available providers
