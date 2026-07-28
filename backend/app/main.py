@@ -24,6 +24,37 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 logger = logging.getLogger("promptbench")
+def _verify_expected_columns() -> None:
+    """Verify all expected columns exist on benchmark_results after migrations.
+
+    Migration 0002 adds cache columns, but if the alembic CLI is missing
+    (e.g., production Docker image built without alembic in main deps),
+    the migration never runs and init_db() cannot ALTER existing tables.
+    This check catches that failure mode at startup with a clear warning
+    rather than letting users discover a 500 on /history.
+    """
+    import sqlalchemy as sa  # noqa: PLC0415
+
+    from .database import engine  # noqa: PLC0415
+
+    expected = {"cache_hit", "cache_type", "cache_lookup_ms", "provider_latency_ms"}
+    try:
+        inspector = sa.inspect(engine)
+        actual = {c["name"] for c in inspector.get_columns("benchmark_results")}
+        missing = expected - actual
+        if missing:
+            logger.warning(
+                "Missing columns on benchmark_results: %s. "
+                "The history page will return 500 until migration 0002 is applied. "
+                "Ensure alembic is installed and 'alembic upgrade head' runs at startup.",
+                ", ".join(sorted(missing)),
+            )
+    except Exception as exc:
+        # Table might not exist yet (fresh database before init_db) —
+        # this is a best-effort check, never a startup blocker.
+        logger.debug("Column verification skipped: %s", exc)
+
+
 def _run_alembic_migrations() -> None:
     """Apply pending Alembic migrations after tables exist.
 
@@ -113,6 +144,7 @@ async def lifespan(app: FastAPI):
     # add columns to existing tables.  Alembic handles incremental changes.
     init_db()  # Create tables first (no-op if they exist)
     _run_alembic_migrations()
+    _verify_expected_columns()  # Warn if cache columns are still missing
     # Repair any benchmarks stuck as "running" from a previous crash
     from .database import SessionLocal  # noqa: PLC0415
     from .routers.benchmarks import _repair_stuck_benchmarks  # noqa: PLC0415
