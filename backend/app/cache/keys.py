@@ -27,6 +27,8 @@ def response_cache_key(
     temperature: float,
     max_tokens: int,
     top_p: float | None = None,
+    seed: int | None = None,
+    response_format: dict | None = None,
     benchmark_config_version: str = BENCHMARK_CONFIG_VERSION,
 ) -> str:
     """Build a deterministic response cache key.
@@ -37,7 +39,7 @@ def response_cache_key(
     logically identical requests hash to the same digest regardless of dict
     insertion order.
     """
-    payload = {
+    payload: dict = {
         "provider": provider,
         "model": model,
         "prompt_template": prompt_template,
@@ -46,6 +48,8 @@ def response_cache_key(
         "temperature": float(temperature),
         "max_tokens": int(max_tokens),
         "top_p": top_p,
+        "seed": seed,
+        "response_format": response_format,
         "config_version": benchmark_config_version,
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))

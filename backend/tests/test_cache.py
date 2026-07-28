@@ -173,6 +173,98 @@ class TestCacheKeys:
         )
         assert k1 != k2
 
+    def test_seed_changes_key(self):
+        k1 = response_cache_key(
+            provider="openai",
+            model="m",
+            prompt_template="p",
+            rendered_prompt="p",
+            system_prompt="",
+            temperature=0.7,
+            max_tokens=100,
+            seed=42,
+        )
+        k2 = response_cache_key(
+            provider="openai",
+            model="m",
+            prompt_template="p",
+            rendered_prompt="p",
+            system_prompt="",
+            temperature=0.7,
+            max_tokens=100,
+            seed=99,
+        )
+        assert k1 != k2
+
+    def test_seed_none_vs_zero_are_different(self):
+        """seed=None (unspecified) ≠ seed=0 (explicit)."""
+        k1 = response_cache_key(
+            provider="openai",
+            model="m",
+            prompt_template="p",
+            rendered_prompt="p",
+            system_prompt="",
+            temperature=0.7,
+            max_tokens=100,
+            seed=None,
+        )
+        k2 = response_cache_key(
+            provider="openai",
+            model="m",
+            prompt_template="p",
+            rendered_prompt="p",
+            system_prompt="",
+            temperature=0.7,
+            max_tokens=100,
+            seed=0,
+        )
+        assert k1 != k2
+
+    def test_config_version_bump_changes_key(self):
+        k1 = response_cache_key(
+            provider="openai",
+            model="m",
+            prompt_template="p",
+            rendered_prompt="p",
+            system_prompt="",
+            temperature=0.7,
+            max_tokens=100,
+            benchmark_config_version="1",
+        )
+        k2 = response_cache_key(
+            provider="openai",
+            model="m",
+            prompt_template="p",
+            rendered_prompt="p",
+            system_prompt="",
+            temperature=0.7,
+            max_tokens=100,
+            benchmark_config_version="2",
+        )
+        assert k1 != k2
+
+    def test_response_format_changes_key(self):
+        k1 = response_cache_key(
+            provider="openai",
+            model="m",
+            prompt_template="p",
+            rendered_prompt="p",
+            system_prompt="",
+            temperature=0.7,
+            max_tokens=100,
+        )
+        k2 = response_cache_key(
+            provider="openai",
+            model="m",
+            prompt_template="p",
+            rendered_prompt="p",
+            system_prompt="",
+            temperature=0.7,
+            max_tokens=100,
+            response_format={"type": "json_object"},
+        )
+        assert k1 != k2
+
 
 # ── In-memory backend ───────────────────────────────────────────────────
 class TestInMemoryBackend:

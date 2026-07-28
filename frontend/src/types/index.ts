@@ -27,6 +27,10 @@ export interface BenchmarkResult {
   response_chars: number | null;
   response_text: string | null;
   error: string | null;
+  cache_hit: boolean | null;
+  cache_type: string | null;
+  cache_lookup_ms: number | null;
+  provider_latency_ms: number | null;
 }
 export interface Benchmark {
   id: number;

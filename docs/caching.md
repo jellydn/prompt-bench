@@ -84,6 +84,8 @@ The payload is canonical JSON (`sort_keys=True`, compact separators) over:
 | `temperature`               | sampling temperature                    |
 | `max_tokens`                | max output tokens                       |
 | `top_p`                     | nucleus sampling (optional)             |
+| `seed`                      | deterministic seed (optional)           |
+| `response_format`           | structured output format (optional)     |
 | `config_version`            | `BENCHMARK_CONFIG_VERSION` constant     |
 
 Bumping `BENCHMARK_CONFIG_VERSION` (in `app/cache/keys.py`) invalidates all
@@ -232,6 +234,103 @@ in a parallel benchmark), a **per-key asyncio lock** guarantees only **one**
 provider call is made. The remaining requests wait, then re-check the cache
 (which the first caller just populated) and return the cached result. This
 prevents thundering-herd cost spikes on cold or expired keys.
+
+---
+
+## How to run the same benchmark twice
+
+1. From the **Run Benchmark** page, enter a prompt, select a model, and run.
+2. Note the benchmark ID from the results page.
+3. Run the **exact same** prompt, model, and parameters again.
+4. On the results page, look for the **Cache hit** badge — the second run will
+   show `Cache hit` with `Provider latency: 0ms` and all tokens/cost at zero.
+
+Or use the API directly:
+
+```bash
+# First run — cache miss
+curl -X POST http://localhost:8000/api/benchmarks \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Say hello","temperature":0.7,"max_tokens":200,"models":[{"provider":"ollama","model":"qwen2.5:0.5b"}]}'
+
+# Second run — cache hit (must be identical)
+curl -X POST http://localhost:8000/api/benchmarks \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Say hello","temperature":0.7,"max_tokens":200,"models":[{"provider":"ollama","model":"qwen2.5:0.5b"}]}'
+```
+
+### How to recognize a cache hit
+
+In the benchmark results:
+- **Cache hit badge** appears next to the status badge
+- **Provider latency** shows `0ms` (no API call was made)
+- **Cost** shows `$0.000000` (no tokens were billed)
+- The **Cache performance** section shows a side-by-side comparison
+- The **Latency breakdown chart** shows provider vs cache lookup bars
+
+### How to start Redis
+
+```bash
+# Via Docker (recommended)
+docker compose up redis
+
+# Or install Redis locally
+brew install redis      # macOS
+redis-server            # start in foreground
+```
+
+Once Redis is running, add the URL to your backend `.env`:
+
+```bash
+REDIS_URL=redis://localhost:6379/0
+```
+
+Restart the backend and verify: `GET /api/cache/stats` should show `"backend": "redis"`.
+
+### How to inspect cache statistics
+
+```bash
+# CLI
+promptbench cache stats
+
+# API
+curl http://localhost:8000/api/cache/stats
+```
+
+Output includes entries, hits, misses, hit rate, and average lookup time.
+
+### How to clear or warm the cache
+
+```bash
+# Clear all caches
+promptbench cache clear
+
+# Clear only responses (keep embeddings)
+promptbench cache clear --prefix response:
+
+# Warm the cache with a benchmark definition
+promptbench cache warm benchmark.yaml
+```
+
+### Limitations of the in-memory fallback
+
+- **Not shared across processes** — each backend worker/replica has its own
+  in-memory store. Two identical requests hitting different workers won't share
+  cached results. Use Redis in multi-instance deployments.
+- **Lost on restart** — in-memory cache is ephemeral. The application restarts
+  with an empty cache.
+- **Unbounded growth** — the in-memory store grows until the process restarts.
+  Redis has built-in key eviction; the in-memory backend trusts TTLs to
+  naturally expire entries but does not enforce a maximum size.
+
+### Data that should not be cached
+
+- Personally identifiable information (PII) in prompts
+- Authentication keys, tokens, or secrets embedded in prompts
+- Time-sensitive content (e.g. stock prices, weather, live sports scores)
+- Non-deterministic completions when reproducibility is not desired
+- BYOK (bring-your-own-key) requests — these are automatically excluded from
+  the cache to prevent cross-user cache leakage
 
 ---
 
