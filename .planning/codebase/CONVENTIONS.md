@@ -47,7 +47,7 @@ ESLint (`eslint.config.js`): typescript-eslint recommended rules.
 
 **Backend**: Provider errors are caught in `run_one()` and returned as `error: str` in the result — they don't crash the benchmark. The `_sanitize_error()` regex strips API key patterns (`sk-...`, `AIza...`) before logging or returning to the frontend.
 
-**Migrations**: `0002_add_cache_metrics` wraps each `batch_alter_table.add_column()` in `try/except OperationalError` for idempotency. `_repair_stuck_benchmarks` catches any exception and rolls back (tables may not exist during migration).
+**Migrations**: `0002_add_cache_metrics` uses SQLAlchemy `inspect()` to check column existence before each `batch_alter_table.add_column()` — avoids transaction abort on PostgreSQL. `_repair_stuck_benchmarks` catches any exception and rolls back (tables may not exist during migration).
 
 **Cache failures**: Both response and embedding caches catch exceptions on store — a cache write failure doesn't fail the benchmark. Cache backend unavailability falls back to in-memory.
 
