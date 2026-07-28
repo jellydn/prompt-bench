@@ -10,13 +10,13 @@ Sync `subprocess.run()` (up to 90s: 30s current + 30s stamp + 30s upgrade) insid
 
 **Mitigation**: Acceptable during startup — no requests being served. Consistent with other sync operations (`init_db()`, `_repair_stuck_benchmarks`).
 
-### 3. No Alembic Downgrade Testing
+### 2. No Alembic Downgrade Testing
 
 **File**: `backend/alembic/versions/0002_add_cache_metrics.py`
 
-`downgrade()` drops cache columns but never tested in CI. On PostgreSQL batch mode: creates temp table, copies data, drops old, renames — drops columns before copying, potentially losing data.
+`downgrade()` drops cache columns but never tested in CI. On PostgreSQL batch mode: creates temp table, copies data, drops old, renames — potentially losing data if the copy step fails.
 
-### 3. SessionKeyStore is Per-Process
+### 2. SessionKeyStore is Per-Process
 
 **File**: `backend/app/session_keys.py`
 
@@ -85,7 +85,7 @@ A dedicated test (`test_key_not_leaked_in_error_response_url`) documents this.
 | CompareRuns page | ❌ No tests |
 | Session key save/clear/expiry | ❌ No integration tests |
 | Real provider API calls | ❌ All mocked |
-| Alembic downgrade | ❌ Not tested |
+| Alembic downgrade | ✅ Covered (`test_downgrade_preserves_non_cache_data`) |
 | Redis fallback to in-memory | ✅ Covered |
 | Multiple concurrent benchmarks | ✅ Covered (stampede prevention) |
 | Rate limiting | ❌ Not tested |
@@ -103,3 +103,5 @@ A dedicated test (`test_key_not_leaked_in_error_response_url`) documents this.
 | get_models() KeyError on missing pricing | ✅ Replaced with `.get()` fallback chain |
 | OpenRouter PRICING stale after free model refresh | ✅ `rebuild_openrouter_pricing()`, dynamic `get_models()` |
 | BYOK test helper duplication (3 classes) | ✅ Extracted to `_BYOKTestBase` |
+| Alembic downgrade untested (CONCERNS.md #2) | ✅ `test_downgrade_preserves_non_cache_data()` |
+| Silent migration failure → production 500 | ✅ Startup `_verify_expected_columns()` health check |
