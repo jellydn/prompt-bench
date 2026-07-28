@@ -37,38 +37,54 @@ def _mock_settings(**kw):
 
 The only difference between classes is `_sse_body` — each provider has a different SSE stream format (OpenAI delta chunks, Anthropic content_block_delta events, Gemini candidates/parts).
 
-This is ~30 lines duplicated across three classes. A new provider with BYOK tests would add a fourth copy.## Decision
+This is ~30 lines duplicated across three classes. A new provider with BYOK tests would add a fourth copy.
+
+## Decision
 
 Extract the three helpers — `_capture_transport`, `_patched_client`, `_mock_settings` — into a shared `_BYOKTestBase` class. All three BYOK test classes (`TestBYOKAuthHeader`, `TestBYOKAnthropicAuthHeader`, `TestBYOKGeminiAuthHeader`) inherit from this base.
 
-Initially deferred ("too invasive for str_replace"), the extraction was successfully completed in a subsequent code-quality pass. The `_BYOKTestBase` is a plain `object` subclass — no pytest collection (leading underscore), no shared mutable state (each `@staticmethod` creates fresh objects per call), and each subclass keeps its own `_sse_body` class attribute for provider-specific SSE formats.
+Initially deferred ("too invasive for str_replace"), the extraction was successfully completed in a subsequent code-quality pass. The `_BYOKTestBase` is a plain `object` subclass — no pytest collection (leading underscore), no shared mutable state (each method creates fresh objects per call), and each subclass keeps its own `_sse_body` class attribute for provider-specific SSE formats.
 
 ### What was extracted
 
 ```python
 class _BYOKTestBase:
-    @staticmethod
-    def _capture_transport(captured: dict):
+    _sse_body: str = ""  # Subclasses override
+
+    @classmethod
+    def _capture_transport(cls, captured: dict):
+        """Return an httpx.MockTransport that captures request details."""
+        body = cls._sse_body
         def handler(request: httpx.Request) -> httpx.Response:
             captured["headers"] = dict(request.headers)
             captured["body"] = request.content
-            return httpx.Response(200, text=cls._sse_body)
+            captured["params"] = dict(request.url.params)
+            return httpx.Response(200, text=body)
         return httpx.MockTransport(handler)
 
-    @staticmethod
-    def _patched_client(captured: dict):
+    @classmethod
+    def _patched_client(cls, captured: dict):
+        """Return an AsyncClient subclass with capture transport injected."""
+        transport = cls._capture_transport(captured)
         class _PC(httpx.AsyncClient):
-            def __init__(self, *a, **kw):
-                kw["transport"] = cls._capture_transport(captured)
+            def __init__(self, *a, **kw):  # noqa: PLW0642
+                kw["transport"] = transport
                 super().__init__(*a, **kw)
         return _PC
 
     @staticmethod
     def _mock_settings(**kw):
+        """Return a mock Settings object with the given attributes."""
         return Mock(**kw)
 ```
 
-Note: helpers remain `@staticmethod` (not `@classmethod`). Each subclass's `_sse_body` is accessed via `cls` already since the helpers live on the class — Python's MRO resolves `cls._sse_body` to the calling subclass's attribute at call time.
+Key design: `_capture_transport` and `_patched_client` are `@classmethod` so `cls._sse_body` resolves to the calling subclass's attribute at call time (MRO). `_mock_settings` remains `@staticmethod` since it needs no class context.
+
+### What was NOT extracted
+
+- `_sse_body` — each provider has a different SSE stream format and remains a class attribute on each test class.
+
+## Consequences
 
 ### What was NOT extracted
 
