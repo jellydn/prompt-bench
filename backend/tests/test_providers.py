@@ -211,6 +211,58 @@ class TestBYOKAuthHeader:
             f"Expected BYOK key to take priority, got: {auth}"
         )
 
+    @pytest.mark.asyncio
+    async def test_byok_key_across_multi_chunk_stream(self):
+        """BYOK key persists across the full SSE stream: 3 deltas + usage + [DONE]."""
+        provider = OpenAIProvider()
+        provider._client_api_key = "sk-byok-stream-key"
+
+        captured: dict = {}
+
+        # 3 content deltas, then a standalone usage chunk, then [DONE].
+        body = (
+            'data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n'
+            'data: {"choices":[{"delta":{"content":" "}}]}\n\n'
+            'data: {"choices":[{"delta":{"content":"world"}}]}\n\n'
+            'data: {"usage":{"prompt_tokens":10,"completion_tokens":3}}\n\n'
+            "data: [DONE]\n\n"
+        )
+
+        def _multi_handler(request: httpx.Request) -> httpx.Response:
+            captured["headers"] = dict(request.headers)
+            return httpx.Response(200, text=body)
+
+        class _MultiPC(httpx.AsyncClient):
+            def __init__(self, *a, **kw):  # noqa: PLW0642
+                kw["transport"] = httpx.MockTransport(_multi_handler)
+                super().__init__(*a, **kw)
+
+        with patch("app.providers.common.httpx.AsyncClient", _MultiPC):
+            result = await provider.generate(
+                prompt="test",
+                model="gpt-4o-mini",
+                temperature=0,
+                max_tokens=10,
+            )
+
+        # All 3 chunks accumulated.
+        assert result.response_text == "Hello world", (
+            f"Expected concatenated chunks, got: {result.response_text!r}"
+        )
+        assert result.input_tokens == 10
+        assert result.output_tokens == 3
+        assert result.response_chars == 11  # "Hello world"
+        assert result.cost > 0  # gpt-4o-mini pricing
+        # Mock transport has zero latency — ttft_ms can legitimately be 0.
+        assert result.ttft_ms >= 0
+        assert result.total_latency_ms >= 0
+
+        # BYOK key is in every request — the mock captures the one and only request.
+        auth = captured.get("headers", {}).get("authorization", "")
+        assert auth == "Bearer sk-byok-stream-key", (
+            f"Expected BYOK key in multi-chunk Authorization header, got: {auth}"
+        )
+
 
 class TestBYOKAnthropicAuthHeader:
     """Verify BYOK keys reach Anthropic's API.
