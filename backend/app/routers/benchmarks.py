@@ -15,6 +15,7 @@ from ..limiter import limiter
 from ..models import Benchmark, BenchmarkResult
 from ..providers import get_provider
 from ..schemas import BenchmarkCreate, BenchmarkOut, BenchmarkSummary
+from ..session_keys import get_session_store
 
 logger = logging.getLogger("promptbench.benchmarks")
 
@@ -30,17 +31,27 @@ async def run_one(item, benchmark_req):
         return item, None, f"Unknown provider: {item.provider}", CacheInfo()
 
     # ── BYOK: inject client-supplied key for this request ──────────────
+    # Priority: per-request key > session key > server-configured key
     client_key = (
         benchmark_req.client_keys.get(item.provider)
         if benchmark_req.client_keys
         else None
     )
+    # Phase 2: merge session-scoped keys if no per-request key is present
+    if not client_key and benchmark_req._session_id:
+        store = get_session_store()
+        session_keys = store.get_keys(benchmark_req._session_id)
+        if session_keys:
+            client_key = session_keys.get(item.provider)
+            if client_key:
+                logger.debug("BYOK session key used for provider=%s", item.provider)
     if client_key:
         # Clone the provider so we don't mutate the global singleton —
         # concurrent BYOK requests for the same provider must not race.
         provider = copy.copy(provider)
         provider._client_api_key = client_key
-        logger.debug("BYOK key used for provider=%s", item.provider)
+        if not benchmark_req._session_id:
+            logger.debug("BYOK per-request key used for provider=%s", item.provider)
 
     if not provider.is_configured:
         return item, None, f"Provider {item.provider} is not configured", CacheInfo()
@@ -114,6 +125,8 @@ async def create_benchmark(
     payload: BenchmarkCreate,
     db: Session = Depends(get_db),
 ):
+    # Phase 2: inject session ID from cookie for session-scoped BYOK keys
+    payload._session_id = request.cookies.get("pb_session")
     _repair_stuck_benchmarks(db)
     benchmark = Benchmark(
         prompt=payload.prompt,

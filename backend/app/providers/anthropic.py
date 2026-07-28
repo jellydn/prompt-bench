@@ -34,10 +34,10 @@ class AnthropicProvider(BaseProvider):
         }
         if system_prompt:
             payload["system"] = system_prompt
-        headers = {
-            "x-api-key": self._client_api_key or get_settings().anthropic_api_key,
-            "anthropic-version": "2023-06-01",
-        }
+        api_key = self._client_api_key or get_settings().anthropic_api_key
+        headers = {"anthropic-version": "2023-06-01"}
+        if api_key:
+            headers["x-api-key"] = api_key
         started, first, parts, inp, out = time.perf_counter(), None, [], 0, 0
         async with (
             httpx.AsyncClient(timeout=120) as client,

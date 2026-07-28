@@ -9,6 +9,7 @@ class ModelSelection(BaseModel):
 
 
 class BenchmarkCreate(BaseModel):
+    model_config = {"arbitrary_types_allowed": True}
     prompt: str = Field(min_length=1, max_length=100_000)
     system_prompt: str = ""
     temperature: float = Field(0.7, ge=0, le=2)
@@ -19,6 +20,9 @@ class BenchmarkCreate(BaseModel):
     # Bring-your-own-key: per-provider API keys supplied by the browser.
     # Keys are never persisted, never logged — kept in memory for this request only.
     client_keys: dict[str, str] | None = None
+    # Internal: session ID from cookie for Phase 2 BYOK session keys.
+    # Not part of the public API — injected by the benchmark endpoint.
+    _session_id: str | None = None
 
 
 class ResultOut(BaseModel):

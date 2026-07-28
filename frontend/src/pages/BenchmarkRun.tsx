@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Play, LoaderCircle, Server, Key, Eye, EyeOff } from "lucide-react";
+import { Play, LoaderCircle, Server, Key, Eye, EyeOff, ShieldCheck, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +26,12 @@ export default function BenchmarkRun() {
   const [selected, setSelected] = useState<string[]>([]);
   const [clientKeys, setClientKeys] = useState<Record<string, string>>({});
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
+  const [rememberedKeys, setRememberedKeys] = useState<Record<string, boolean>>({});
+  const sessionKeys = useQuery({
+    queryKey: ["session-keys"],
+    queryFn: api.sessionKeys,
+    staleTime: 10_000,
+  });
   const providers = useQuery({
     queryKey: ["providers"],
     queryFn: api.providers,
@@ -40,8 +46,10 @@ export default function BenchmarkRun() {
     );
   const hasClientKey = (providerId: string) =>
     (clientKeys[providerId]?.trim().length ?? 0) > 0;
+  const hasSessionKey = (providerId: string) =>
+    sessionKeys.data?.providers.includes(providerId) ?? false;
   const isConfigured = (p: { id: string; configured: boolean }) =>
-    p.configured || hasClientKey(p.id);
+    p.configured || hasClientKey(p.id) || hasSessionKey(p.id);
   const maskKey = (key: string) =>
     key.length > 8 ? `${key.slice(0, 4)}${'•'.repeat(key.length - 8)}${key.slice(-4)}` : '••••••••';
   const nonEmptyClientKeys = Object.fromEntries(
@@ -158,9 +166,11 @@ export default function BenchmarkRun() {
                 <span className="ml-auto text-xs text-muted-foreground">
                   {p.configured
                     ? "Configured"
-                    : hasClientKey(p.id)
-                      ? "Your key"
-                      : "API key not set"}
+                    : hasSessionKey(p.id)
+                      ? "Session key"
+                      : hasClientKey(p.id)
+                        ? "Your key"
+                        : "API key not set"}
                 </span>
               </div>
               {/* BYOK key input — shown for eligible providers not server-configured */}
@@ -173,9 +183,10 @@ export default function BenchmarkRun() {
                     placeholder={`${p.name} API key…`}
                     aria-label={`${p.name} API key`}
                     value={clientKeys[p.id] || ""}
-                    onChange={(e) =>
-                      setClientKeys((prev) => ({ ...prev, [p.id]: e.target.value }))
-                    }
+                    onChange={(e) => {
+                      setClientKeys((prev) => ({ ...prev, [p.id]: e.target.value }));
+                      setRememberedKeys((prev) => ({ ...prev, [p.id]: false }));
+                    }}
                     autoComplete="off"
                     spellCheck={false}
                   />
@@ -190,6 +201,35 @@ export default function BenchmarkRun() {
                     {showKeys[p.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   </button>
                 </div>
+              )}
+              {/* Remember key checkbox + session indicator */}
+              {!p.configured && p.byok_eligible && hasClientKey(p.id) && (
+                <label className="mb-2 flex items-center gap-2 text-[11px] text-muted-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="h-3 w-3"
+                    checked={rememberedKeys[p.id] || false}
+                    onChange={async (e) => {
+                      const want = e.target.checked;
+                      setRememberedKeys((prev) => ({ ...prev, [p.id]: want }));
+                      if (want) {
+                        try {
+                          await api.saveSessionKey(p.id, clientKeys[p.id]);
+                          sessionKeys.refetch();
+                        } catch {
+                          setRememberedKeys((prev) => ({ ...prev, [p.id]: false }));
+                        }
+                      }
+                    }}
+                  />
+                  Remember for this session
+                </label>
+              )}
+              {hasSessionKey(p.id) && !hasClientKey(p.id) && (
+                <p className="mb-2 flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
+                  <ShieldCheck className="h-3 w-3" />
+                  Key saved for this session
+                </p>
               )}
               {hasClientKey(p.id) && !p.configured && !showKeys[p.id] && (
                 <p className="mb-2 text-[10px] text-muted-foreground">
@@ -251,6 +291,20 @@ export default function BenchmarkRun() {
         {run.isPending ? <LoaderCircle className="animate-spin" /> : <Play />}
         {run.isPending ? "Running benchmark…" : "Run Benchmark"}
       </Button>
+      {sessionKeys.data && sessionKeys.data.providers.length > 0 && (
+        <button
+          type="button"
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors"
+          onClick={async () => {
+            await api.clearSessionKeys();
+            sessionKeys.refetch();
+            setRememberedKeys({});
+          }}
+        >
+          <Trash2 className="h-3 w-3" />
+          Clear all session keys
+        </button>
+      )}
     </div>
   );
 }

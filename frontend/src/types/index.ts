@@ -81,3 +81,7 @@ export interface CreateBenchmark {
   cache?: boolean;
   client_keys?: Record<string, string>;
 }
+
+export interface SessionKeyInfo {
+  providers: string[];
+}
