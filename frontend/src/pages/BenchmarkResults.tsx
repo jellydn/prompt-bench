@@ -114,6 +114,19 @@ export default function BenchmarkResults() {
     input: r.input_tokens ?? 0,
     output: r.output_tokens ?? 0,
   }));
+  const hasCacheMetrics = good.some((r) => r.cache_hit != null);
+  const cacheBadge = (r: typeof good[number]) => (
+    <Badge
+      variant="default"
+      className={
+        r.cache_hit
+          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+          : ""
+      }
+    >
+      {r.cache_hit ? "Cache hit" : "Cache miss"}
+    </Badge>
+  );
   return (
     <div className="space-y-6">
       <Button variant="ghost" onClick={back}>
@@ -189,18 +202,7 @@ export default function BenchmarkResults() {
                       <Badge variant={r.error ? "destructive" : "success"}>
                         {r.error ? "Error" : "Success"}
                       </Badge>
-                      {r.cache_hit != null && (
-                        <Badge
-                          variant="default"
-                          className={
-                            r.cache_hit
-                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                              : ""
-                          }
-                        >
-                          {r.cache_hit ? "Cache hit" : "Cache miss"}
-                        </Badge>
-                      )}
+                      {r.cache_hit != null && cacheBadge(r)}
                     </span>
                   </TableCell>
                 </TableRow>
@@ -249,7 +251,7 @@ export default function BenchmarkResults() {
         </Card>
       </div>
       {/* Cache comparison section — only shown when cache metrics exist */}
-      {good.some((r) => r.cache_hit != null) && (
+      {hasCacheMetrics && (
         <>
           <Card>
             <CardHeader>
@@ -282,18 +284,11 @@ export default function BenchmarkResults() {
                       </TableCell>
                       <TableCell>
                         {r.cache_hit != null ? (
-                          <Badge
-                            variant="default"
-                            className={
-                              r.cache_hit
-                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                                : ""
-                            }
-                          >
-                            {r.cache_hit ? "HIT" : "MISS"}
-                          </Badge>
+                          <span className="space-x-1">
+                            {cacheBadge(r)}
+                          </span>
                         ) : (
-                          <Badge variant="secondary">DISABLED</Badge>
+                          <Badge variant="secondary">Disabled</Badge>
                         )}
                       </TableCell>
                       <TableCell>
@@ -331,7 +326,7 @@ export default function BenchmarkResults() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <span>Cost: {money(0)}</span>
+                        <span>Provider cost: {money(r.cost)}</span>
                       </div>
                     </div>
                   );
