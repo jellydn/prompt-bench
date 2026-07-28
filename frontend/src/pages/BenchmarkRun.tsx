@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 export default function BenchmarkRun() {
   const navigate = useNavigate();
   const [prompt, setPrompt] = useState("");
@@ -117,7 +118,24 @@ export default function BenchmarkRun() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
-          {providers.isLoading && <p>Loading providers…</p>}
+          {providers.isLoading && (
+            <>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-lg border p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Skeleton className="h-4 w-4 rounded-sm" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                  <Skeleton className="mb-3 h-7 w-full" />
+                  <div className="flex flex-wrap gap-2">
+                    <Skeleton className="h-7 w-16 rounded-full" />
+                    <Skeleton className="h-7 w-20 rounded-full" />
+                    <Skeleton className="h-7 w-14 rounded-full" />
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
           {providers.isError && (
             <p className="text-destructive">
               Could not load providers: {providers.error.message}
