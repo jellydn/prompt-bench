@@ -28,6 +28,7 @@ def test_migration_full_cycle():
         db_url = f"sqlite:///{db_path}"
 
     alembic_cfg = Config("alembic.ini")
+    engine = None
 
     try:
         os.environ["ALEMBIC_TEST_URL"] = db_url
@@ -61,12 +62,14 @@ def test_migration_full_cycle():
             assert "benchmark_results" not in tables_after
 
     finally:
-        engine.dispose()
+        if engine is not None:
+            engine.dispose()
         os.unlink(db_path)
         os.environ.pop("ALEMBIC_TEST_URL", None)
 
 
 def test_downgrade_preserves_non_cache_data():  # noqa: PLR0915
+
 
     """Downgrade from 0002→0001 should drop cache columns but keep other data.
 
