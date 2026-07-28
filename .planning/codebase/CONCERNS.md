@@ -2,17 +2,7 @@
 
 ## Known Issues
 
-### 1. OpenRouter Free Model Refresh Doesn't Update PRICING
-
-**Files**: `backend/app/providers/model_lists.py`, `backend/app/pricing.py`
-
-`PRICING["openrouter"]` is statically computed at import time. When `refresh_openrouter_free_models()` updates `OPENROUTER_FREE_MODELS` at runtime, neither `PRICING` nor `OpenRouterProvider.model_names` are updated.
-
-**Impact**: Runtime-added free models have no pricing. `get_models()` uses `.get()` fallback → returns zero pricing (safe). `calculate_cost()` defaults to $0 (harmless).
-
-**Mitigation**: Both `model_names` and `PRICING` are stale in lockstep — no KeyError in practice. The runtime refresh helps display but doesn't update what's selectable.
-
-### 2. Sync subprocess.run Blocks Event Loop During Startup
+### 1. Sync subprocess.run Blocks Event Loop During Startup
 
 **File**: `backend/app/main.py::_run_alembic_migrations()`
 
@@ -20,21 +10,13 @@ Sync `subprocess.run()` (up to 90s: 30s current + 30s stamp + 30s upgrade) insid
 
 **Mitigation**: Acceptable during startup — no requests being served. Consistent with other sync operations (`init_db()`, `_repair_stuck_benchmarks`).
 
-### 3. BYOK Test Helper Duplication
-
-**File**: `backend/tests/test_providers.py`
-
-`_capture_transport`, `_patched_client`, `_mock_settings` are defined identically in three test classes. Only `_sse_body` differs.
-
-**Suggested fix**: Extract to shared base class.
-
-### 4. No Alembic Downgrade Testing
+### 3. No Alembic Downgrade Testing
 
 **File**: `backend/alembic/versions/0002_add_cache_metrics.py`
 
 `downgrade()` drops cache columns but never tested in CI. On PostgreSQL batch mode: creates temp table, copies data, drops old, renames — drops columns before copying, potentially losing data.
 
-### 5. SessionKeyStore is Per-Process
+### 3. SessionKeyStore is Per-Process
 
 **File**: `backend/app/session_keys.py`
 
@@ -119,3 +101,5 @@ A dedicated test (`test_key_not_leaked_in_error_response_url`) documents this.
 | Alembic re-stamp on every startup | ✅ `alembic current` pre-check |
 | Migration 0002 try/except broken on PostgreSQL | ✅ Replaced with inspector-based column existence check |
 | get_models() KeyError on missing pricing | ✅ Replaced with `.get()` fallback chain |
+| OpenRouter PRICING stale after free model refresh | ✅ `rebuild_openrouter_pricing()`, dynamic `get_models()` |
+| BYOK test helper duplication (3 classes) | ✅ Extracted to `_BYOKTestBase` |
