@@ -76,7 +76,12 @@ async def run_one(item, benchmark_req):
         )
         return item, result, None, cache_info
     except Exception as exc:
-        logger.error("Provider %s/%s failed: %s", item.provider, item.model, exc)
+        logger.error(
+            "Provider %s/%s failed: %s",
+            item.provider,
+            item.model,
+            _sanitize_error(str(exc)),
+        )
         return item, None, _sanitize_error(str(exc)), CacheInfo()
 
 

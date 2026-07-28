@@ -39,7 +39,7 @@ export default function BenchmarkRun() {
       s.includes(key) ? s.filter((x) => x !== key) : [...s, key],
     );
   const hasClientKey = (providerId: string) =>
-    (clientKeys[providerId]?.length ?? 0) > 0;
+    (clientKeys[providerId]?.trim().length ?? 0) > 0;
   const isConfigured = (p: { id: string; configured: boolean }) =>
     p.configured || hasClientKey(p.id);
   const maskKey = (key: string) =>
@@ -171,6 +171,7 @@ export default function BenchmarkRun() {
                     type={showKeys[p.id] ? "text" : "password"}
                     className="flex-1 rounded border bg-background px-2 py-1 text-xs font-mono"
                     placeholder={`${p.name} API key…`}
+                    aria-label={`${p.name} API key`}
                     value={clientKeys[p.id] || ""}
                     onChange={(e) =>
                       setClientKeys((prev) => ({ ...prev, [p.id]: e.target.value }))

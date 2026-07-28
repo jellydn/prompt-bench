@@ -29,7 +29,8 @@ class OpenAICompatibleProvider(BaseProvider):
         messages = ([{"role": "system", "content": system_prompt}] if system_prompt else []) + [
             {"role": "user", "content": prompt}
         ]
-        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        api_key = self._client_api_key or self.api_key
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         headers = {**headers, **self.extra_headers}
         started = time.perf_counter()
         first = None

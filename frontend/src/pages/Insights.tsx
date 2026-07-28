@@ -114,7 +114,7 @@ export default function Insights() {
       {!q.isLoading && !q.isError && x && Object.values(x).every((v) => v === null) && (
         <div className="py-24 text-center">
           <TrendingUp className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-          <h1 className="text-2xl font-bold">Run benchmarks to see insights</h1>
+          <h2 className="text-2xl font-bold">Run benchmarks to see insights</h2>
         </div>
       )}
       {!q.isLoading && !q.isError && x && !Object.values(x).every((v) => v === null) && (
