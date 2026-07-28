@@ -10,6 +10,7 @@ from app.pricing import PRICING, calculate_cost
 from app.providers import PROVIDERS
 from app.providers.anthropic import AnthropicProvider
 from app.providers.base import ProviderResponse
+from app.providers.gemini import GeminiProvider
 from app.providers.openai import OpenAIProvider
 
 
@@ -462,6 +463,242 @@ class TestBYOKAnthropicAuthHeader:
         key = captured.get("headers", {}).get("x-api-key", "")
         assert key == "sk-ant-byok-stream-key", (
             f"Expected BYOK key in multi-chunk x-api-key header, got: {key}"
+        )
+
+
+class TestBYOKGeminiAuthHeader:
+    """Verify BYOK keys reach Gemini's API.
+
+    GeminiProvider embeds the API key as a URL query parameter (?key=...),
+    not as a header.  These tests capture request.url.params to verify
+    the key is correctly injected.
+    """
+
+    # Minimal valid Gemini SSE stream.
+    _sse_body = (
+        'data: {"candidates":[{"content":{"parts":[{"text":"ok"}]}}],'
+        '"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":1}}\n\n'
+    )
+
+    @staticmethod
+    def _capture_transport(captured: dict):
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured["headers"] = dict(request.headers)
+            captured["params"] = dict(request.url.params)
+            return httpx.Response(200, text=TestBYOKGeminiAuthHeader._sse_body)
+        return httpx.MockTransport(handler)
+
+    @staticmethod
+    def _patched_client(captured: dict):
+        class _PC(httpx.AsyncClient):
+            def __init__(self, *a, **kw):  # noqa: PLW0642
+                kw["transport"] = TestBYOKGeminiAuthHeader._capture_transport(captured)
+                super().__init__(*a, **kw)
+        return _PC
+
+    @staticmethod
+    def _mock_settings(**kw):
+        return Mock(**kw)
+
+    @pytest.mark.asyncio
+    async def test_byok_key_used_in_url_params(self):
+        """When _client_api_key is set, it appears in the ?key= URL parameter."""
+        provider = GeminiProvider()
+        provider._client_api_key = "sk-gemini-byok-key"
+
+        captured: dict = {}
+
+        with patch(
+            "app.providers.gemini.httpx.AsyncClient",
+            self._patched_client(captured),
+        ):
+            result = await provider.generate(
+                prompt="test",
+                model="gemini-1.5-flash",
+                temperature=0,
+                max_tokens=10,
+            )
+
+        assert result.response_text == "ok"
+        params = captured.get("params", {})
+        assert params.get("key") == "sk-gemini-byok-key", (
+            f"Expected BYOK key in URL ?key= param, got: {params}"
+        )
+        assert params.get("alt") == "sse"
+
+    @pytest.mark.asyncio
+    async def test_server_key_fallback_in_url_params(self):
+        """When _client_api_key is NOT set, the server's gemini_api_key is used."""
+        provider = GeminiProvider()
+        provider._client_api_key = None
+
+        captured: dict = {}
+
+        with patch(
+            "app.providers.gemini.httpx.AsyncClient",
+            self._patched_client(captured),
+        ):
+            with patch(
+                "app.providers.gemini.get_settings",
+                return_value=self._mock_settings(gemini_api_key="sk-gemini-server-key"),
+            ):
+                result = await provider.generate(
+                    prompt="test",
+                    model="gemini-1.5-flash",
+                    temperature=0,
+                    max_tokens=10,
+                )
+
+        assert result.response_text == "ok"
+        params = captured.get("params", {})
+        assert params.get("key") == "sk-gemini-server-key", (
+            f"Expected server key fallback in URL ?key=, got: {params}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_empty_key_param_when_no_key(self):
+        """When neither key is set, ?key= is empty (Gemini sends it anyway)."""
+        provider = GeminiProvider()
+        provider._client_api_key = None
+
+        captured: dict = {}
+
+        with patch(
+            "app.providers.gemini.httpx.AsyncClient",
+            self._patched_client(captured),
+        ):
+            with patch(
+                "app.providers.gemini.get_settings",
+                return_value=self._mock_settings(gemini_api_key=""),
+            ):
+                result = await provider.generate(
+                    prompt="test",
+                    model="gemini-1.5-flash",
+                    temperature=0,
+                    max_tokens=10,
+                )
+
+        assert result.response_text == "ok"
+        params = captured.get("params", {})
+        # Gemini always sends ?key=; when both are empty it's an empty string.
+        assert params.get("key") == "", (
+            f"Expected empty ?key= when no key configured, got: {params}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_byok_priority_over_server_key_in_url(self):
+        """When BOTH keys are set, BYOK key MUST take priority in URL params."""
+        provider = GeminiProvider()
+        provider._client_api_key = "sk-gemini-byok-wins"
+
+        captured: dict = {}
+
+        with patch(
+            "app.providers.gemini.httpx.AsyncClient",
+            self._patched_client(captured),
+        ):
+            with patch(
+                "app.providers.gemini.get_settings",
+                return_value=self._mock_settings(
+                    gemini_api_key="sk-gemini-should-not-appear"
+                ),
+            ):
+                result = await provider.generate(
+                    prompt="test",
+                    model="gemini-1.5-flash",
+                    temperature=0,
+                    max_tokens=10,
+                )
+
+        assert result.response_text == "ok"
+        params = captured.get("params", {})
+        assert params.get("key") == "sk-gemini-byok-wins", (
+            f"Expected BYOK key to take priority in ?key=, got: {params}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_key_not_leaked_in_error_response_url(self):
+        """When Gemini returns an error, the exception URL must not expose the key.
+
+        httpx's HTTPStatusError includes the request URL in its message.  Since
+        Gemini puts the key in URL params, a 401/403 error would leak the key
+        into logs if the exception is not sanitized.
+        """
+        provider = GeminiProvider()
+        provider._client_api_key = "sk-leaked-key-12345"
+
+        def _error_handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(401, json={"error": {"message": "Invalid key"}})
+
+        class _ErrorPC(httpx.AsyncClient):
+            def __init__(self, *a, **kw):  # noqa: PLW0642
+                kw["transport"] = httpx.MockTransport(_error_handler)
+                super().__init__(*a, **kw)
+
+        with patch("app.providers.gemini.httpx.AsyncClient", _ErrorPC):
+            with pytest.raises(httpx.HTTPStatusError) as exc_info:
+                await provider.generate(
+                    prompt="test",
+                    model="gemini-1.5-flash",
+                    temperature=0,
+                    max_tokens=10,
+                )
+
+        # The raw httpx exception WILL contain the key in the URL.
+        # This test documents that fact — the benchmarks router's _sanitize_error
+        # is responsible for stripping it before logging.
+        assert "sk-leaked-key-12345" in str(exc_info.value), (
+            "Gemini keys appear in httpx exception URLs — "
+            "callers MUST sanitize before logging."
+        )
+
+    @pytest.mark.asyncio
+    async def test_byok_key_across_multi_chunk_stream(self):
+        """BYOK key persists across full Gemini SSE stream: 3 parts + usage."""
+        provider = GeminiProvider()
+        provider._client_api_key = "sk-gemini-stream-key"
+
+        captured: dict = {}
+
+        # 3 content parts, then a usageMetadata chunk.  No [DONE] for Gemini.
+        body = (
+            'data: {"candidates":[{"content":{"parts":[{"text":"Hello"}]}}]}\n\n'
+            'data: {"candidates":[{"content":{"parts":[{"text":" "}]}}]}\n\n'
+            'data: {"candidates":[{"content":{"parts":[{"text":"world"}]}}]}\n\n'
+            'data: {"usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":3}}\n\n'
+        )
+
+        def _multi_handler(request: httpx.Request) -> httpx.Response:
+            captured["headers"] = dict(request.headers)
+            captured["params"] = dict(request.url.params)
+            return httpx.Response(200, text=body)
+
+        class _MultiPC(httpx.AsyncClient):
+            def __init__(self, *a, **kw):  # noqa: PLW0642
+                kw["transport"] = httpx.MockTransport(_multi_handler)
+                super().__init__(*a, **kw)
+
+        with patch("app.providers.gemini.httpx.AsyncClient", _MultiPC):
+            result = await provider.generate(
+                prompt="test",
+                model="gemini-1.5-flash",
+                temperature=0,
+                max_tokens=10,
+            )
+
+        assert result.response_text == "Hello world", (
+            f"Expected concatenated chunks, got: {result.response_text!r}"
+        )
+        assert result.input_tokens == 10
+        assert result.output_tokens == 3
+        assert result.response_chars == 11
+        assert result.cost > 0  # gemini-1.5-flash pricing
+        assert result.ttft_ms >= 0
+        assert result.total_latency_ms >= 0
+
+        params = captured.get("params", {})
+        assert params.get("key") == "sk-gemini-stream-key", (
+            f"Expected BYOK key in multi-chunk ?key=, got: {params}"
         )
 
 
