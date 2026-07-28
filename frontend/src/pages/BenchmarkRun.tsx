@@ -75,11 +75,12 @@ export default function BenchmarkRun({
             />
           </div>
           <div className="space-y-2">
-            <Label>
+            <Label htmlFor="system-prompt">
               System prompt{" "}
               <span className="text-muted-foreground">(optional)</span>
             </Label>
             <Textarea
+              id="system-prompt"
               value={system}
               onChange={(e) => setSystem(e.target.value)}
               placeholder="You are a clear, concise assistant."
@@ -87,8 +88,9 @@ export default function BenchmarkRun({
           </div>
           <div className="grid gap-6 sm:grid-cols-2">
             <div className="space-y-3">
-              <Label>Temperature: {temp.toFixed(1)}</Label>
+              <Label htmlFor="temperature">Temperature: {temp.toFixed(1)}</Label>
               <Slider
+                id="temperature"
                 min={0}
                 max={2}
                 step={0.1}
@@ -97,8 +99,9 @@ export default function BenchmarkRun({
               />
             </div>
             <div className="space-y-2">
-              <Label>Max tokens</Label>
+              <Label htmlFor="max-tokens">Max tokens</Label>
               <Input
+                id="max-tokens"
                 type="number"
                 min={1}
                 value={max}

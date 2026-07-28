@@ -39,7 +39,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-muted/30">
       <header className="fixed inset-x-0 top-0 z-20 flex h-16 items-center border-b bg-background px-4 md:hidden">
-        <Button variant="ghost" size="icon" onClick={() => setOpen(!open)}>
+        <Button variant="ghost" size="icon" onClick={() => setOpen(!open)} aria-label="Open navigation">
           <Menu />
         </Button>
         <Activity className="ml-3 h-6 w-6" />

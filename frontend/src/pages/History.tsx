@@ -108,22 +108,24 @@ export default function History({ onOpen }: { onOpen: (id: number) => void }) {
           )}
         </CardContent>
       </Card>
-      <div className="flex justify-end gap-2">
-        <Button
-          variant="outline"
-          disabled={!offset}
-          onClick={() => setOffset(Math.max(0, offset - limit))}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          disabled={(q.data?.length ?? 0) < limit}
-          onClick={() => setOffset(offset + limit)}
-        >
-          Next
-        </Button>
-      </div>
+      {q.isSuccess && (
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            disabled={!offset}
+            onClick={() => setOffset(Math.max(0, offset - limit))}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            disabled={(q.data?.length ?? 0) < limit}
+            onClick={() => setOffset(offset + limit)}
+          >
+            Next
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
