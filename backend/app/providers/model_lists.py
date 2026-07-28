@@ -31,9 +31,12 @@ _STATIC_OPENROUTER_FREE = [
 
 # OpenRouter popular paid models (not refreshed from API)
 OPENROUTER_PAID_MODELS = [
+    "openai/gpt-4.1",
     "openai/gpt-4o",
-    "anthropic/claude-3.5-sonnet",
-    "google/gemini-pro-1.5",
+    "anthropic/claude-sonnet-5",
+    "anthropic/claude-opus-5",
+    "google/gemini-2.5-pro",
+    "google/gemini-3.5-flash",
     "meta-llama/llama-3.1-70b-instruct",
 ]
 

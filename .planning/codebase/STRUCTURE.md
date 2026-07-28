@@ -1,236 +1,148 @@
-# Codebase Structure
-
-**Analysis Date:** 2026-07-26
+# Structure
 
 ## Directory Layout
 
 ```
 prompt-bench/
-├── backend/                  # FastAPI Python backend
-│   ├── app/                  # Application package
-│   │   ├── __init__.py       # Package docstring
-│   │   ├── main.py           # FastAPI app factory and entry point
-│   │   ├── config.py         # Pydantic settings (env-backed)
-│   │   ├── database.py       # SQLAlchemy engine, session, Base, get_db()
-│   │   ├── models.py         # ORM models (Benchmark, BenchmarkResult)
-│   │   ├── schemas.py        # Pydantic request/response schemas
-│   │   ├── pricing.py        # Pricing lookup table + cost calculator
-│   │   ├── providers/        # AI provider implementations
-│   │   │   ├── __init__.py   # Provider registry (PROVIDERS dict)
-│   │   │   ├── base.py       # BaseProvider ABC + ModelInfo, ProviderResponse
-│   │   │   ├── common.py     # OpenAICompatibleProvider shared mixin
-│   │   │   ├── openai.py     # OpenAI concrete provider
-│   │   │   ├── anthropic.py  # Anthropic concrete provider
-│   │   │   ├── gemini.py     # Google Gemini concrete provider
-│   │   │   ├── openrouter.py # OpenRouter concrete provider
-│   │   │   ├── ollama.py     # Ollama concrete provider
-│   │   │   └── vllm.py       # vLLM concrete provider
-│   │   └── routers/          # FastAPI router modules
-│   │       ├── __init__.py   # Docstring only
-│   │       ├── benchmarks.py # CRUD + benchmark execution router
-│   │       ├── providers.py  # Provider listing router
-│   │       └── insights.py   # Cost/latency analytics router
-│   ├── Dockerfile            # Backend container image
-│   └── requirements.txt      # Python dependencies
-├── frontend/                 # React TypeScript frontend
-│   ├── src/                  # Source code
-│   │   ├── main.tsx          # React entry point (QueryClient + App)
-│   │   ├── App.tsx           # Shell component with navigation/routing
-│   │   ├── lib/              # Shared utilities
-│   │   │   ├── api.ts        # Fetch-based API client
-│   │   │   └── utils.ts      # Formatting helpers (money, latency, tokens, cn)
-│   │   ├── hooks/            # Custom React hooks
-│   │   │   └── useMediaQuery.ts
-│   │   ├── types/            # TypeScript type definitions
-│   │   │   └── index.ts
-│   │   ├── components/ui/    # shadcn/ui primitive components
-│   │   └── pages/            # Route-level page components
-│   │       ├── BenchmarkRun.tsx
-│   │       ├── BenchmarkResults.tsx
-│   │       ├── History.tsx
-│   │       └── Insights.tsx
-│   ├── Dockerfile            # Frontend container image
-│   ├── index.html            # HTML entry point (mounts #root)
-│   ├── vite.config.ts        # Vite config (proxy, alias)
-│   ├── tailwind.config.js    # Tailwind CSS configuration
-│   ├── postcss.config.js     # PostCSS configuration
-│   ├── tsconfig.json         # TypeScript compiler config
-│   └── package.json          # NPM dependencies and scripts
-├── docker-compose.yml        # Full stack orchestration
-├── .env                      # Environment variables (gitignored)
-├── .gitignore
-├── README.md
-├── AGENTS.md
-├── justfile                  # Task runner (dev, lint, format, clean)
-└── prek.toml                 # Pre-commit hooks config
+├── backend/                          # FastAPI application
+│   ├── app/
+│   │   ├── main.py                   # FastAPI app, lifespan, middleware
+│   │   ├── config.py                 # Pydantic Settings (env vars)
+│   │   ├── database.py               # SQLAlchemy engine, session, init_db()
+│   │   ├── models.py                 # ORM: Benchmark, BenchmarkResult
+│   │   ├── schemas.py                # Pydantic: BenchmarkCreate, BenchmarkOut, etc.
+│   │   ├── pricing.py                # PRICING dict + calculate_cost()
+│   │   ├── limiter.py                # slowapi Limiter (60/min global)
+│   │   ├── session_keys.py           # In-memory SessionKeyStore (Phase 2 BYOK)
+│   │   ├── routers/
+│   │   │   ├── benchmarks.py         # POST /benchmarks, GET /benchmarks, GET /benchmarks/{id}, DELETE
+│   │   │   ├── insights.py           # GET /insights (SQL-level aggregation)
+│   │   │   ├── providers.py          # GET /providers (cached provider list)
+│   │   │   ├── cache.py              # GET /cache/stats, DELETE /cache
+│   │   │   └── session_keys.py       # POST/DELETE /session-key
+│   │   ├── providers/
+│   │   │   ├── __init__.py           # PROVIDERS registry, get_providers_cached()
+│   │   │   ├── base.py               # BaseProvider(ABC), ModelInfo, ProviderResponse
+│   │   │   ├── common.py             # OpenAICompatibleProvider (shared SSE parsing)
+│   │   │   ├── openai.py             # OpenAIProvider
+│   │   │   ├── anthropic.py          # AnthropicProvider (custom SSE)
+│   │   │   ├── gemini.py             # GeminiProvider (custom SSE + URL auth)
+│   │   │   ├── openrouter.py         # OpenRouterProvider
+│   │   │   ├── ollama.py             # OllamaProvider (local, JSON-lines)
+│   │   │   ├── vllm.py               # VLLMProvider (local)
+│   │   │   └── model_lists.py        # Static + runtime-refreshed model IDs
+│   │   ├── cache/
+│   │   │   ├── __init__.py           # Public API exports
+│   │   │   ├── cache.py              # CacheBackend, InMemoryCache, RedisCache
+│   │   │   ├── response_cache.py     # ResponseCache, CacheInfo, KeyLockRegistry
+│   │   │   ├── embedding_cache.py    # EmbeddingCache, EmbeddingResult
+│   │   │   └── keys.py               # Cache key generators
+│   │   └── __init__.py
+│   ├── alembic/
+│   │   ├── env.py                    # Migration environment (reads DATABASE_URL)
+│   │   ├── alembic.ini               # Base config (SQLite default)
+│   │   ├── script.py.mako            # Migration template
+│   │   └── versions/
+│   │       ├── 2dae871076fe_initial_schema.py
+│   │       └── 0002_add_cache_metrics.py  # Idempotent cache columns
+│   ├── tests/
+│   │   ├── conftest.py               # Test fixtures (temp SQLite, TestClient)
+│   │   ├── test_providers.py         # Provider + BYOK auth header tests
+│   │   ├── test_benchmarks.py        # API endpoint + SSE parsing tests
+│   │   ├── test_cache.py             # Cache layer tests (fakeredis)
+│   │   └── test_migrations.py        # Alembic migration tests
+│   ├── pyproject.toml                # Dependencies, ruff config, pytest config
+│   ├── uv.lock                       # Locked dependency versions
+│   └── Dockerfile                    # Multi-stage: build frontend → backend + static
+├── frontend/                         # React 19 SPA
+│   ├── src/
+│   │   ├── main.tsx                  # ReactDOM.createRoot, QueryClientProvider
+│   │   ├── App.tsx                   # Layout, sidebar, bottom tabs, routes
+│   │   ├── index.css                 # Tailwind + CSS custom properties (theme)
+│   │   ├── types/
+│   │   │   └── index.ts              # TypeScript interfaces (Provider, Benchmark, etc.)
+│   │   ├── lib/
+│   │   │   ├── api.ts                # fetch() wrapper, all API functions
+│   │   │   └── utils.ts              # cn(), money(), latency(), tokens()
+│   │   ├── components/
+│   │   │   ├── ui/                   # shadcn/ui components (11 files)
+│   │   │   ├── ErrorBoundary.tsx      # React error boundary
+│   │   │   └── BenchmarkCacheSection.tsx  # Cache metrics display + CacheBadge
+│   │   ├── hooks/
+│   │   │   └── useMediaQuery.ts      # Responsive breakpoint hook
+│   │   ├── pages/
+│   │   │   ├── BenchmarkRun.tsx       # Prompt input + model selection
+│   │   │   ├── BenchmarkResults.tsx   # Results table + charts + cache section
+│   │   │   ├── CompareRuns.tsx        # Side-by-side run comparison
+│   │   │   ├── History.tsx            # Paginated benchmark list
+│   │   │   └── Insights.tsx           # Aggregate statistics cards
+│   │   ├── __tests__/
+│   │   │   └── BenchmarkResults.test.tsx  # Component rendering test
+│   │   └── test-setup.ts             # jest-dom matchers import
+│   ├── index.html                    # Vite entry point
+│   ├── vite.config.ts                # Vite config (+ @ alias, proxy)
+│   ├── vitest.config.ts              # Vitest config (jsdom, @ alias)
+│   ├── tsconfig.json                 # TypeScript config (strict, paths)
+│   ├── tailwind.config.js            # Tailwind CSS custom colors
+│   ├── postcss.config.js             # PostCSS plugins
+│   ├── eslint.config.js              # ESLint config (typescript-eslint)
+│   ├── package.json                  # Dependencies + scripts
+│   └── Dockerfile                    # Dev server (Node 24 Alpine)
+├── docs/
+│   ├── adr/                          # Architecture Decision Records (7 ADRs)
+│   │   ├── 001-response-embedding-cache.md
+│   │   ├── 002-provider-abstraction.md
+│   │   ├── 003-byok-architecture.md
+│   │   ├── 004-stampede-prevention.md
+│   │   ├── 005-cache-key-design.md
+│   │   ├── 006-frontend-testing.md
+│   │   └── 007-cache-byok-guard.md
+│   └── caching.md                    # Cache user documentation
+├── .github/workflows/
+│   ├── ci.yml                        # CI: ruff, pytest, tsc, eslint
+│   └── deploy.yml                    # CD: flyctl deploy on push to main
+├── docker-compose.yml                # Full stack: postgres, redis, backend, frontend
+├── fly.toml                          # Fly.io deployment config
+├── AGENTS.md                         # AI coding agent instructions
+├── README.md                         # Project README
+├── QUICK_START.md                    # Quick start guide
+├── justfile                          # Task runner commands
+└── .planning/
+    ├── codebase/                     # This codemap (7 documents)
+    └── handoffs/                     # Session handoff files
 ```
-
-## Directory Purposes
-
-**backend/app/**
-
-- Purpose: Core backend application code — FastAPI app, database, models, providers, routers
-- Contains: All Python application logic
-- Key files: `main.py` (entry), `config.py` (settings), `database.py` (ORM setup), `models.py` (data models)
-
-**backend/app/providers/**
-
-- Purpose: Pluggable AI provider implementations following the Provider pattern
-- Contains: One file per provider (OpenAI, Anthropic, Gemini, OpenRouter, Ollama, vLLM) plus shared base classes
-- Key files: `base.py` (ABC + dataclasses), `common.py` (OpenAI-compatible shared logic), `__init__.py` (registry)
-
-**backend/app/routers/**
-
-- Purpose: FastAPI route handlers organized by domain
-- Contains: Three routers — benchmarks, providers, insights
-- Key files: `benchmarks.py` (136 lines, the core router), `providers.py` (23 lines), `insights.py` (65 lines)
-
-**frontend/src/**
-
-- Purpose: React SPA source code
-- Contains: Entry point, app shell, pages, shared utilities, UI components, types
-- Key files: `App.tsx` (shell/navigation), `main.tsx` (entry), `lib/api.ts` (API client)
-
-**frontend/src/pages/**
-
-- Purpose: Top-level page components, one per app section
-- Contains: `BenchmarkRun.tsx` (184 lines), `BenchmarkResults.tsx` (220 lines), `History.tsx` (129 lines), `Insights.tsx` (118 lines)
-
-**frontend/src/components/ui/**
-
-- Purpose: shadcn/ui primitive components (button, card, table, tabs, etc.)
-- Contains: 10 copied/modified shadcn primitives (badge, button, card, input, label, select, separator, slider, table, textarea)
-
-**frontend/src/lib/**
-
-- Purpose: Shared frontend utilities
-- Contains: `api.ts` (fetch wrapper, 35 lines) and `utils.ts` (formatting helpers, 15 lines)
-
-**frontend/src/types/**
-
-- Purpose: TypeScript interface definitions mirroring backend Pydantic schemas
-- Contains: `index.ts` (81 lines) with `Benchmark`, `BenchmarkResult`, `Provider`, `Insights`, `CreateBenchmark`, etc.
-
-**frontend/src/hooks/**
-
-- Purpose: Custom React hooks
-- Contains: `useMediaQuery.ts` (13 lines) for responsive dark-mode detection
-
-## Key File Locations
-
-**Entry Points:**
-
-- `backend/app/main.py`: FastAPI app creation, router mounting, lifespan (DB init)
-- `frontend/src/main.tsx`: React DOM root rendering, QueryClient setup
-- `frontend/src/App.tsx`: Top-level React component with page routing state
-- `frontend/index.html`: HTML mount point (`<div id="root">`)
-
-**Configuration:**
-
-- `backend/app/config.py`: All backend settings (DB URL, API keys, CORS origins)
-- `backend/app/.env.example` (not present as tracked file): Template for env vars
-- `frontend/vite.config.ts`: Dev server proxy (`/api` → `http://localhost:8000`), path alias `@` → `./src`
-- `docker-compose.yml`: Full stack (postgres, redis, backend, frontend)
-- `backend/Dockerfile`: Python 3.12 slim image, installs requirements, runs uvicorn
-- `frontend/Dockerfile`: Node 22 Alpine image, installs npm deps, runs dev server
-
-**Core Logic:**
-
-- `backend/app/providers/base.py`: Provider ABC and shared dataclasses (43 lines)
-- `backend/app/providers/common.py`: OpenAI-compatible streaming implementation (76 lines)
-- `backend/app/providers/pricing.py`: Pricing lookup table and `calculate_cost()` function (60 lines)
-- `backend/app/routers/benchmarks.py`: Core benchmark execution and CRUD router (136 lines)
-- `backend/app/models.py`: Two SQLAlchemy ORM models (50 lines)
-- `backend/app/schemas.py`: Pydantic request/response schemas (54 lines)
-- `frontend/src/lib/api.ts`: Centralized API client (35 lines)
-- `frontend/src/types/index.ts`: TypeScript type interfaces (81 lines)
 
 ## Naming Conventions
 
-**Files:**
+| Convention | Example |
+|---|---|
+| **Backend modules**: lowercase with underscores | `benchmarks.py`, `session_keys.py` |
+| **Backend classes**: PascalCase | `BaseProvider`, `BenchmarkResult` |
+| **Backend functions**: snake_case | `run_one()`, `_sanitize_error()` |
+| **Backend private helpers**: prefixed with `_` | `_run_alembic_migrations()` |
+| **Frontend components**: PascalCase, one per file | `BenchmarkRun.tsx` |
+| **Frontend utilities**: camelCase | `cn()`, `api.history()` |
+| **Frontend types**: PascalCase interfaces | `BenchmarkResult`, `CacheStats` |
+| **Database tables**: snake_case plural | `benchmarks`, `benchmark_results` |
+| **Database columns**: snake_case | `total_latency_ms`, `cache_hit` |
+| **Alembic migrations**: `NNNN_description.py` | `0002_add_cache_metrics.py` |
+| **ADR files**: `NNN-slug-name.md` | `003-byok-architecture.md` |
+| **Loggers**: `promptbench.module_name` | `promptbench.benchmarks` |
 
-- Python: `snake_case.py` (e.g., `main.py`, `benchmarks.py`, `openai.py`)
-- TypeScript: `PascalCase.tsx` for components (e.g., `BenchmarkRun.tsx`), `camelCase.ts` for utilities (e.g., `api.ts`, `useMediaQuery.ts`)
-- Config: lowercase with extensions (e.g., `tsconfig.json`, `vite.config.ts`, `tailwind.config.js`)
+## Key Locations
 
-**Directories:**
-
-- Python package: `app/` (backend application root)
-- Subpackages: `providers/`, `routers/` (domain-organized)
-- Frontend: `pages/` (route-level), `components/ui/` (UI primitives), `lib/` (utilities), `hooks/` (custom hooks), `types/` (TS interfaces)
-
-**Providers:**
-
-- Class names: `{ProviderName}Provider` (e.g., `OpenAIProvider`, `AnthropicProvider`)
-- Provider IDs: lowercase single-word identifiers (e.g., `"openai"`, `"anthropic"`, `"openrouter"`)
-- Variable names: `provider_id`, `provider_name` as class-level attributes on each provider
-
-**Models/Schemas:**
-
-- ORM models: PascalCase, singular (e.g., `Benchmark`, `BenchmarkResult`)
-- Pydantic schemas: PascalCase with suffixes (e.g., `BenchmarkCreate`, `BenchmarkOut`, `BenchmarkSummary`)
-- TypeScript interfaces: PascalCase matching Pydantic schema names (e.g., `Benchmark`, `BenchmarkResult`, `Provider`)
-
-**API Endpoints:**
-
-- Prefix: `/api` (mounted in `main.py` for all routers)
-- Resources: plural nouns (`/benchmarks`, `/providers`, `/insights`)
-- Single-resource: `/benchmarks/{benchmark_id}`
-
-## Where to Add New Code
-
-**New Feature (backend):**
-
-- New router: `backend/app/routers/{name}.py`, then `include_router()` in `backend/app/main.py`
-- New model: Add to `backend/app/models.py`
-- New schema: Add to `backend/app/schemas.py`
-- New provider: Add file to `backend/app/providers/`, import + register in `backend/app/providers/__init__.py`
-
-**New Feature (frontend):**
-
-- New page: Add file to `frontend/src/pages/`
-- New API endpoint: Add method to `frontend/src/lib/api.ts`
-- New type: Add interface to `frontend/src/types/index.ts`
-- New UI component: Add to `frontend/src/components/ui/` or `frontend/src/components/`
-- New hook: Add to `frontend/src/hooks/`
-
-**New utility:**
-
-- Shared Python helper: `backend/app/` (root-level module)
-- Shared TypeScript helper: `frontend/src/lib/`
-
-## Special Directories
-
-**frontend/src/components/ui/:**
-
-- Purpose: shadcn/ui primitive components (copy-pasted from shadcn/ui template, customized)
-- Generated: No (manually maintained)
-- Committed: Yes
-
-**backend/.venv/:**
-
-- Purpose: Python virtual environment
-- Generated: Yes (created by `python -m venv`)
-- Committed: No (gitignored)
-
-**frontend/node_modules/:**
-
-- Purpose: Installed npm dependencies
-- Generated: Yes
-- Committed: No (gitignored)
-
-**frontend/dist/:**
-
-- Purpose: Production build output from Vite
-- Generated: Yes (via `npm run build`)
-- Committed: No (gitignored)
-
-**backend/promptbench.db:**
-
-- Purpose: SQLite database file (default dev database)
-- Generated: Yes (created on first `init_db()` call)
-- Committed: No (gitignored)
-
----
-
-_Structure analysis: 2026-07-26_
+| What | Where |
+|------|-------|
+| App entry point | `backend/app/main.py` |
+| Startup migrations | `backend/app/main.py::_run_alembic_migrations()` |
+| Provider registry | `backend/app/providers/__init__.py::PROVIDERS` |
+| Pricing data | `backend/app/pricing.py::PRICING` |
+| Benchmark runner | `backend/app/routers/benchmarks.py::run_one()` |
+| BYOK key injection | `backend/app/routers/benchmarks.py::run_one()` (lines ~40-60) |
+| Cache layer | `backend/app/cache/response_cache.py` |
+| Session key store | `backend/app/session_keys.py::SessionKeyStore` |
+| Frontend API client | `frontend/src/lib/api.ts` |
+| Frontend routes | `frontend/src/App.tsx` (Routes component) |
+| UI theme variables | `frontend/src/index.css` |
+| Test fixtures | `backend/tests/conftest.py` |
+| Migration env | `backend/alembic/env.py::get_url()` |

@@ -4,25 +4,24 @@ import time
 import httpx
 
 from ..config import get_settings
-from ..pricing import PRICING, calculate_cost
-from .base import BaseProvider, ModelInfo, ProviderResponse
+from ..pricing import calculate_cost
+from .base import BaseProvider, ProviderResponse
 
 
 class GeminiProvider(BaseProvider):
     provider_id, provider_name = "gemini", "Google Gemini"
     supports_byok = True
     model_names = {
-        "gemini-1.5-pro": "Gemini 1.5 Pro",
-        "gemini-1.5-flash": "Gemini 1.5 Flash",
-        "gemini-2.0-flash-exp": "Gemini 2.0 Flash Experimental",
+        "gemini-2.5-pro": "Gemini 2.5 Pro",
+        "gemini-2.5-flash": "Gemini 2.5 Flash",
+        "gemini-2.5-flash-lite": "Gemini 2.5 Flash-Lite",
+        "gemini-3.5-flash": "Gemini 3.5 Flash",
+        "gemini-3.6-flash": "Gemini 3.6 Flash",
     }
 
     @property
     def is_configured(self):
         return bool(self._client_api_key or get_settings().gemini_api_key)
-
-    def get_models(self):
-        return [ModelInfo(k, v, PRICING[self.provider_id][k]) for k, v in self.model_names.items()]
 
     async def generate(self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000):
         body = {

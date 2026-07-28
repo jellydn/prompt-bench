@@ -1,147 +1,112 @@
-# Coding Conventions
-
-**Analysis Date:** 2026-07-26
-
-## Naming Patterns
-
-**Files:**
-
-- Python backend: `snake_case.py` (`main.py`, `config.py`, `models.py`, `schemas.py`, `database.py`, `pricing.py`)
-- Python backend modules: `snake_case/` directory with `__init__.py` barrel files (`providers/`, `routers/`)
-- Frontend pages: `PascalCase.tsx` (`BenchmarkResults.tsx`, `BenchmarkRun.tsx`, `History.tsx`, `Insights.tsx`)
-- Frontend hooks: `camelCase.ts` (`useMediaQuery.ts`)
-- Frontend UI primitives: `lowercase.tsx` (`button.tsx`, `card.tsx`, `input.tsx`, `badge.tsx`, `table.tsx`, `tabs.tsx`, `slider.tsx`, `label.tsx`, `select.tsx`, `textarea.tsx`, `separator.tsx`)
-- Frontend lib: `camelCase.ts` (`api.ts`, `utils.ts`)
-- Frontend types: `index.ts` in a `types/` directory
-
-**Functions:**
-
-- Python: `snake_case` (`get_provider`, `generate`, `get_models`, `calculate_cost`, `utcnow`, `get_db`, `init_db`, `run_one`)
-- TypeScript: `camelCase` (`request`, `money`, `latency`, `tokens`, `useMediaQuery`, `cn`)
-
-**Variables:**
-
-- Python: `snake_case` (`provider_id`, `provider_name`, `api_key`, `base_url`, `model_names`, `cors_origins`, `database_url`)
-- TypeScript: `camelCase` for local variables, `PascalCase` for types/interfaces
-
-**Types:**
-
-- Pydantic models: `PascalCase` (`BenchmarkCreate`, `BenchmarkOut`, `BenchmarkSummary`, `ResultOut`, `ModelSelection`)
-- Dataclasses: `PascalCase` (`ModelInfo`, `ProviderResponse`)
-- Python classes: `PascalCase` (`OpenAIProvider`, `AnthropicProvider`, `GeminiProvider`, `OpenRouterProvider`, `OllamaProvider`, `VLLMProvider`, `Settings`, `Benchmark`, `BenchmarkResult`, `BaseProvider`, `OpenAICompatibleProvider`)
-- TypeScript interfaces: `PascalCase` (`Provider`, `Benchmark`, `BenchmarkResult`, `BenchmarkHistoryItem`, `Insights`, `CreateBenchmark`, `ProviderModel`, `ModelPricing`)
-- TypeScript type aliases: `PascalCase` (`Page`)
+# Conventions
 
 ## Code Style
 
-**Formatting:**
+### Python (ruff-enforced)
 
-- Python: `ruff` for both linting and formatting (see `justfile` targets `lint-backend` and `format-backend`)
-- TypeScript/TSX: `prettier` for formatting (see `justfile` target `format-frontend`)
-- No `.ruff.toml` or `.prettierrc` config files found; defaults are used
-- No `.eslintrc` or `.prettierrc` config files found for the frontend; ESLint runs via `npx eslint .`
+| Rule | Setting |
+|------|---------|
+| Line length | 100 |
+| Indent | 4 spaces |
+| Quotes | Double |
+| Line endings | Auto |
+| Target version | Python 3.12 |
 
-**Linting:**
+**Lint rules** (`pyproject.toml`): E, F, I, N, W, UP, B, SIM, C4, PL. Excludes: `PLR2004` (magic values), `PLR0913` (too many arguments), `B008` (function call defaults), `SIM117` (nested with statements).
 
-- Backend: `ruff check .` (lint), `ruff format .` (format)
-- Frontend: `npx eslint .` (lint), `npx prettier --check .` (format check)
-- Pre-commit hooks configured via `prek.toml` with `ruff-format`, `ruff-lint`, and `prettier-frontend` hooks
+**Migrations excluded from linting**: `alembic/versions/*.py` (auto-generated, exclude in `pyproject.toml`).
 
-## Import Organization
+### TypeScript/React
 
-**Python -- Order:**
+| Rule | Setting |
+|------|---------|
+| Target | ES2022 |
+| Module | ESNext (bundler resolution) |
+| JSX | react-jsx |
+| Strict mode | `true` |
+| No unused locals | `false` (lenient) |
+| No unused params | `false` (lenient) |
 
-1. Standard library (`datetime`, `functools`, `contextlib`, `asyncio`, `json`, `time`)
-2. Third-party (`fastapi`, `sqlalchemy`, `pydantic`, `pydantic_settings`, `httpx`)
-3. Local/relative (`from .config import settings`, `from ..pricing import PRICING`)
+ESLint (`eslint.config.js`): typescript-eslint recommended rules.
 
-**Python -- Path Aliases:**
+### Naming Patterns
 
-- No path aliases; relative imports only (e.g., `from .config import settings`, `from ..pricing import calculate_cost`)
+| Context | Pattern | Example |
+|---------|---------|---------|
+| Provider IDs | lowercase, no spaces | `"openai"`, `"google_gemini"` serialized as `"gemini"` |
+| Model IDs | lowercase with hyphens | `"gpt-4.1"`, `"claude-sonnet-5"` |
+| Database columns | snake_case | `cache_hit`, `total_latency_ms` |
+| API endpoints | kebab-case | `/api/session-key`, `/api/cache/stats` |
+| React components | PascalCase files | `BenchmarkCacheSection.tsx` |
+| Test files | `test_*.py` | `test_providers.py` |
+| Test classes/functions | `Test*` / `test_*` | `TestBYOKAuthHeader`, `test_known_model` |
 
-**TypeScript -- Order:**
+## Patterns
 
-1. React and React-related (`react`, `react-dom`)
-2. Third-party library imports (`@tanstack/react-query`, `lucide-react`, `recharts`, `class-variance-authority`, `clsx`, `tailwind-merge`)
-3. Local `@/` alias imports (`@/lib/api`, `@/lib/utils`, `@/types`, `@/components/ui/*`, `@/pages/*`)
+### Error Handling
 
-**TypeScript -- Path Aliases:**
+**Backend**: Provider errors are caught in `run_one()` and returned as `error: str` in the result — they don't crash the benchmark. The `_sanitize_error()` regex strips API key patterns (`sk-...`, `AIza...`) before logging or returning to the frontend.
 
-- `@` maps to `./src` (configured in `vite.config.ts` resolve.alias and `tsconfig.json` paths)
+**Migrations**: `0002_add_cache_metrics` wraps each `batch_alter_table.add_column()` in `try/except OperationalError` for idempotency. `_repair_stuck_benchmarks` catches any exception and rolls back (tables may not exist during migration).
 
-## Error Handling
+**Cache failures**: Both response and embedding caches catch exceptions on store — a cache write failure doesn't fail the benchmark. Cache backend unavailability falls back to in-memory.
 
-**Patterns:**
+**Frontend**: `<ErrorBoundary>` wraps all routes. API errors are shown inline via `q.isError ? <error message>`. BYOK key save failures silently uncheck the "Remember" checkbox.
 
-- Python: `try/except` blocks catch broad `Exception` in `run_one()` (benchmarks.py line 30-31), returning error strings instead of raising
-- Python: `HTTPException(status_code, detail)` for HTTP error responses (e.g., 404 for not-found resources in routers)
-- Python: `response.raise_for_status()` for HTTP transport errors in provider implementations
-- Python: No custom exception classes or structured error types
-- Python: Error field on `ProviderResponse` dataclass stores error message as `str | None`
-- TypeScript/Frontend: Query error states surfaced via React Query's `q.isError` with `q.error.message` displayed inline as text (no toast or notification system)
-- No global error boundary or error middleware in the frontend
+### Logging
 
-## Logging
+Structured logging via `logging.basicConfig` with format: `2026-07-28T17:10:33 [INFO] promptbench.module: message`.
 
-**Framework:** None (no Python `logging` module, no `console.log` in backend code)
+Log levels:
+- `INFO`: startup events, benchmark creation/completion, cache hits, migration status
+- `WARNING`: API failures, migration issues, Redis connection failures
+- `DEBUG`: BYOK key usage (provider only, never the key itself), session creation/deletion
+- `ERROR`: Provider call failures
 
-**Patterns:**
+**Security**: API keys are NEVER logged. `_sanitize_error()` runs before `logger.error()`. BYOK log messages only include the provider name, never the key.
 
-- No logging, no print statements, no structured logging in any Python or TypeScript source files
-- Error information flows through HTTP responses and React Query error states only
+### Dependency Injection
 
-## Comments
+FastAPI's `Depends(get_db)` for database sessions. `slowapi` limiter via `@limiter.limit()`. Test overrides via `app.dependency_overrides[get_db]`.
 
-**When to Comment:**
+### Async Patterns
 
-- Module-level docstring on `backend/app/__init__.py` ("PromptBench backend package.")
-- Inline comments in `backend/app/pricing.py` explaining free model pricing source
-- Inline comment in `backend/app/providers/openrouter.py` explaining provider attribution headers and free model selection
-- No docstrings on functions or classes (absent throughout the codebase)
-- No JSDoc or TSDoc comments in frontend TypeScript files
+- `asyncio.gather()` for parallel benchmark execution
+- `asyncio.Semaphore(5)` limits concurrent provider API calls
+- `httpx.AsyncClient.stream()` for SSE response parsing
+- `asyncio.create_subprocess_exec` not used — `subprocess.run` is sync in `lifespan` (consistent with existing sync `init_db()` and `_repair_stuck_benchmarks`)
+- `lifespan` async context manager for startup/shutdown
 
-**JSDoc/TSDoc:**
+### React Patterns
 
-- Not used anywhere in the codebase
-- Type annotations are used heavily in TypeScript but without explanatory JSDoc
+- **Lazy loading**: All 5 page components via `React.lazy()` + `<Suspense>`
+- **Query wrapping**: `renderWithClient` test helper wraps in `QueryClientProvider` with `retry: false`
+- **BYOK state**: Keys in React `useState`, never in localStorage or URL. `type="password"` for key inputs
+- **Dark mode**: CSS custom properties + `.dark` class toggle on `<html>`. Persisted in localStorage
+- **Responsive**: Desktop sidebar + mobile bottom tab bar. `useMediaQuery` hook, `cn()` utility for conditional classes
 
-## Function Design
+## Commit Convention
 
-**Size:**
+Commitizen conventional commits: `feat(scope):`, `fix(scope):`, `refactor(scope):`, `docs:`, `test:`, `chore:`. Footer: `Generated with Codebuff 🤖 Co-Authored-By: Codebuff <noreply@codebuff.com>`.
 
-- Generally small and focused (most functions are 10-30 lines)
-- Provider `generate` methods are the largest functions (60-80 lines each), each handling a full streaming HTTP request lifecycle
-- Router endpoints are medium-sized (20-140 lines)
+## API Conventions
 
-**Parameters:**
+| Rule | Detail |
+|------|--------|
+| URL prefix | `/api/` for all backend routes |
+| Response format | JSON (`response_model=` on all routes) |
+| Status codes | 200 (success), 204 (DELETE), 404 (not found), 422 (validation), 429 (rate limit) |
+| Error propagation | `error: string \| null` in result objects, never 500 for domain errors |
+| CORS | `allow_credentials=True`, methods `GET/POST/DELETE/OPTIONS`, origins from config |
+| Rate limiting | 60/min global, 10/min for POST /benchmarks |
 
-- Python provider `generate` methods share a common signature: `(self, prompt, model, system_prompt="", temperature=0.7, max_tokens=1000)`
-- Pydantic request models used for typed endpoint inputs (`BenchmarkCreate`)
-- Pydantic response models used for typed endpoint outputs (`BenchmarkOut`, `ResultOut`)
+## Data Safety
 
-**Return Values:**
-
-- Python: Provider `generate` methods return `ProviderResponse` dataclass instances
-- Python: Router endpoints return Pydantic models directly (FastAPI serializes them)
-- Python: `calculate_cost` returns a `float`
-- TypeScript: `api` lib functions return `Promise<T>` typed via generic `request<T>()` helper
-
-## Module Design
-
-**Exports:**
-
-- Python: Barrel `__init__.py` files re-export key symbols:
-  - `backend/app/providers/__init__.py` exports all provider classes and the `PROVIDERS` dict and `get_provider()` function
-  - `backend/app/routers/__init__.py` contains only a docstring (`"""API routers."""`)
-- TypeScript: Default exports for page components, named exports for UI primitives (`export const Button`, `export function Badge`)
-
-**Barrel Files:**
-
-- `backend/app/providers/__init__.py` -- aggregates all providers into a `PROVIDERS` dict
-- `backend/app/routers/__init__.py` -- docstring only (routers imported directly in `main.py`)
-- `backend/app/__init__.py` -- module-level docstring only
-- Frontend: `types/index.ts` serves as a barrel for all TypeScript interfaces
-
----
-
-_Convention analysis: 2026-07-26_
+| Rule | Where |
+|------|-------|
+| BYOK keys never persisted | In-memory only, `copy.copy()` per request |
+| BYOK keys never logged | `%s` with provider name only |
+| Provider errors sanitized | `_sanitize_error()` regex in `benchmarks.py` |
+| Cache disabled for BYOK | `use_cache = req.cache and not client_key` |
+| Database URL sanitized in logs | `_safe_url()` strips credentials |
+| Frontend keys never in storage | `useState`, `type="password"` |

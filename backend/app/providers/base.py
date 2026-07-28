@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from ..pricing import PRICING
+
 
 @dataclass
 class ModelInfo:
@@ -42,8 +44,18 @@ class BaseProvider(ABC):
         max_tokens: int = 1000,
     ) -> ProviderResponse: ...
 
-    @abstractmethod
-    def get_models(self) -> list[ModelInfo]: ...
+    def get_models(self) -> list[ModelInfo]:
+        """Return model list with pricing from ``PRICING[self.provider_id]``.
+
+        Subclasses only need to set ``model_names: dict[str, str]`` — the
+        default implementation reads pricing automatically.  Providers with
+        custom lookup logic (e.g. OpenRouter with runtime-refreshed lists)
+        can override.
+        """
+        return [
+            ModelInfo(k, v, PRICING[self.provider_id][k])
+            for k, v in self.model_names.items()
+        ]
 
     @property
     @abstractmethod

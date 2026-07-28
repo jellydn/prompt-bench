@@ -1,134 +1,89 @@
-# External Integrations
+# Integrations
 
-**Analysis Date:** 2026-07-26
+## External AI Provider APIs
 
-## APIs & External Services
+All provider calls go through `httpx.AsyncClient` with SSE streaming. Each provider is a class in `backend/app/providers/`.
 
-**LLM Providers (all called via HTTP/REST with streaming):**
+| Provider | File | Auth Method | Base URL | BYOK |
+|----------|------|------------|----------|------|
+| OpenAI | `openai.py` | `Authorization: Bearer` header | `https://api.openai.com/v1/chat/completions` | ✓ |
+| Anthropic | `anthropic.py` | `x-api-key` header | `https://api.anthropic.com/v1/messages` | ✓ |
+| Google Gemini | `gemini.py` | `?key=` URL query param | `https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent` | ✓ |
+| OpenRouter | `openrouter.py` | `Authorization: Bearer` header | `https://openrouter.ai/api/v1/chat/completions` | ✓ |
+| Ollama | `ollama.py` | None (local) | `http://localhost:11434/api/chat` | ✗ |
+| vLLM | `vllm.py` | None (local) | `http://localhost:8001/v1/chat/completions` | ✗ |
 
-- **OpenAI** — Chat completions via `/v1/chat/completions`
-  - SDK/Client: `httpx.AsyncClient` (Python), native `fetch` (frontend)
-  - Auth: `OPENAI_API_KEY` (env var `openai_api_key`)
-  - Base URL: `https://api.openai.com/v1/chat/completions`
-  - Models: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo
+### Provider Architecture
 
-- **Anthropic** — Messages API with SSE streaming
-  - SDK/Client: `httpx.AsyncClient` (Python)
-  - Auth: `ANTHROPIC_API_KEY` (env var `anthropic_api_key`)
-  - Base URL: `https://api.anthropic.com/v1/messages`
-  - Headers: `x-api-key`, `anthropic-version: 2023-06-01`
-  - Models: claude-3-5-sonnet, claude-3-5-haiku, claude-3-opus
+**Base class** (`base.py`): `BaseProvider(ABC)` — abstract `generate()`, abstract `is_configured` property, default `get_models()` reading from `PRICING`. All providers set `model_names: dict[str, str]` mapping model IDs to display names.
 
-- **Google Gemini** — Generative Language API
-  - SDK/Client: `httpx.AsyncClient` (Python)
-  - Auth: API key passed as query param (`key=settings.gemini_api_key`)
-  - Base URL: `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
-  - Models: gemini-1.5-pro, gemini-1.5-flash, gemini-2.0-flash-exp
+**Shared base** (`common.py`): `OpenAICompatibleProvider(BaseProvider)` — used by OpenAI, OpenRouter, and vLLM. Implements `generate()` with standard OpenAI-style SSE parsing (delta chunks with `stream_options.include_usage`). Subclasses only set `base_url`, `model_names`, and `api_key`.
 
-- **OpenRouter** — Unified LLM gateway (OpenAI-compatible)
-  - SDK/Client: `httpx.AsyncClient` via `OpenAICompatibleProvider` base class
-  - Auth: `OPENROUTER_API_KEY` (env var `openrouter_api_key`) — keys starting with `sk-or-v1-`
-  - Base URL: `https://openrouter.ai/api/v1/chat/completions`
-  - Attribution headers: `HTTP-Referer`, `X-Title`
-  - 11 free models (`:free` suffix) + 4 paid models
-  - Free models: gemma-4-31b-it, gemma-4-26b-a4b-it, nemotron-3 variants,
-    north-mini-code, laguna variants, ling-3.0-flash, openrouter/free
+**Custom implementations**: Anthropic and Gemini have their own `generate()` methods due to different API protocols (Anthropic uses `content_block_delta` events with `message_start`/`message_delta` framing; Gemini uses URL-embedded keys and `candidates` array parsing). Ollama uses JSON-lines streaming without SSE envelopes.
 
-**Local LLM Servers (self-hosted, no API key required):**
+### OpenRouter Free Model Refresh
 
-- **Ollama** — Local LLM inference server
-  - SDK/Client: `httpx.AsyncClient`
-  - Auth: None (local only)
-  - Base URL: configurable via `OLLAMA_BASE_URL` (default `http://localhost:11434`)
-  - Endpoint: `/api/chat` (OpenAI-compatible chat format)
-  - Models: llama3.1, mistral, qwen2.5, phi3
+`model_lists.py` fetches `https://openrouter.ai/api/v1/models` at startup (TTL: 1 hour) to discover free models (`pricing.prompt == 0 && pricing.completion == 0`). The result replaces `OPENROUTER_FREE_MODELS` in-place and invalidates the provider cache. Static fallback list is used if the API call fails.
 
-- **vLLM** — High-throughput LLM serving
-  - SDK/Client: `httpx.AsyncClient` via `OpenAICompatibleProvider`
-  - Auth: None
-  - Base URL: configurable via `VLLM_BASE_URL` (default `http://localhost:8001`)
-  - Endpoint: `/v1/chat/completions` (OpenAI-compatible)
-  - Models: Meta-Llama-3.1-8B-Instruct, Mistral-7B-Instruct-v0.3
+### Pricing
 
-## Data Storage
+`pricing.py` contains a static `PRICING` dict with per-1K-token costs for all models across all providers. `calculate_cost(provider, model, input_tokens, output_tokens)` returns `tokens / 1000 * price` with a default of `{"input": 0.0, "output": 0.0}` for unknown models — it never KeyError's.
 
-**Databases:**
+OpenRouter paid models are priced at pass-through rates matching the underlying provider. Free models get `$0` pricing.
 
-- **PostgreSQL 16** — Primary production database (Docker Compose)
-  - Connection: `postgresql://promptbench:promptbench@postgres:5432/promptbench`
-  - Env var: `DATABASE_URL`
-  - Client/ORM: SQLAlchemy 2.0.36 (async not used; sync sessionmaker with `get_db` dependency)
-  - Image: `postgres:16-alpine`
+## Database
 
-- **SQLite** — Default development database
-  - Connection: `sqlite:///./promptbench.db` (file-based, local)
-  - Same SQLAlchemy ORM, different `connect_args` (`check_same_thread=False`)
-  - File: `backend/promptbench.db` (gitignored)
+**PostgreSQL 16** in production (Fly.io with Supabase). **SQLite 3** for local development and tests.
 
-**File Storage:** Local filesystem only (no S3 or object storage).
+Connection: `SQLAlchemy 2.0` with `psycopg v3` driver. PostgreSQL URLs are normalized: `postgres://` → `postgresql+psycopg://` (handles Fly.io's `postgres://` format).
 
-**Caching:**
+Connection pooling (`QueuePool`): `pool_size=10`, `max_overflow=20`, `pool_pre_ping=True`. SQLite uses `NullPool`.
 
-- **Redis 7** (optional, via `REDIS_URL` env var, Docker Compose)
-  - Image: `redis:7-alpine`
-  - Port: 6379
-  - Currently imported as `aiocache` dependency but not actively wired into provider logic
+Schema managed by Alembic with two migrations:
+1. `2dae871076fe` — initial schema (benchmarks + benchmark_results)
+2. `0002_add_cache_metrics` — cache columns (idempotent, per-column batch_alter_table with OperationalError fallback)
 
-## Authentication & Identity
+Startup: `init_db()` (SQLAlchemy `create_all`) → `_run_alembic_migrations()` (stamp baseline → upgrade head). The dual approach handles both fresh DBs (create_all) and existing create_all DBs needing ALTER TABLE.
 
-**Auth Provider:** Custom API-key-based (no OAuth, no session auth, no user accounts).
+## Cache Layer
 
-Each LLM provider requires its own API key stored in environment variables:
+`backend/app/cache/` — response and embedding caches:
 
-- `OPENAI_API_KEY` — OpenAI API key
-- `ANTHROPIC_API_KEY` — Anthropic API key
-- `GEMINI_API_KEY` — Google Gemini API key
-- `OPENROUTER_API_KEY` — OpenRouter API key (format `sk-or-v1-`)
+| Backend | When Used | Configuration |
+|---------|-----------|---------------|
+| Redis | `REDIS_URL` env var is set | Default in Docker Compose |
+| In-Memory | `REDIS_URL` is empty/Redis unreachable | Default in local dev |
 
-No user-facing authentication or authorization layer exists in the application.
+**Response cache** (`response_cache.py`): Caches `ProviderResponse` objects keyed by provider + model + prompt + temperature + max_tokens + system_prompt + seed + response_format + benchmark_config_version. TTL: 30 minutes (configurable).
 
-## Monitoring & Observability
+**Embedding cache** (`embedding_cache.py`): Caches embedding vectors keyed by provider + model + text. TTL: 24 hours.
 
-**Error Tracking:** None (no Sentry, Datadog, or similar service integrated).
+**BYOK guard**: Cache is disabled when client BYOK keys are active (`use_cache = benchmark_req.cache and not client_key` in `benchmarks.py:run_one()`). This prevents cross-user leakage (ADR-007).
 
-**Logs:** Console/stdout via `uvicorn` logging. FastAPI health endpoint at `/` returns `{"status": "ok"}`.
+**Stampede prevention**: `_KeyLockRegistry` provides per-key `asyncio.Lock` — N concurrent requests for the same key trigger only 1 provider call, the other N-1 wait and re-check the cache (ADR-004).
 
-**Metrics:** No Prometheus, Grafana, or APM integration.
+**API**: `GET /api/cache/stats`, `DELETE /api/cache` (clear all), CLI: `promptbench cache stats|clear|warm`.
 
-## CI/CD & Deployment
+## BYOK (Bring Your Own Key)
 
-**Hosting:** Docker-based deployment only (no cloud platform specified, no Kubernetes config).
+Users can supply their own API keys from the browser. Two phases:
 
-**CI Pipeline:** None present (no `.github/workflows/`, no CI config files).
+**Phase 1 — Per-request keys** (`client_keys` in `CreateBenchmark`): Keys are injected into a shallow-copied provider instance before `generate()`. Never persisted, never logged.
 
-**Deployment:** `docker compose up --build` for full stack; individual `Dockerfile` files for each service:
+**Phase 2 — Session-scoped keys** (`backend/app/session_keys.py`): `POST /api/session-key` stores keys in an in-memory `SessionKeyStore` with 30-minute inactivity TTL. Session ID is tracked via `pb_session` HttpOnly cookie. Keys are returned via `GET /api/session-key` (provider IDs only, never the keys themselves).
 
-- Backend: `python:3.12-slim` → `pip install -r requirements.txt` → `uvicorn`
-- Frontend: `node:22-alpine` → `npm install` → `npm run dev`
+Privacy invariants (ADR-003): keys never logged, provider error messages sanitized (`_sanitize_error` regex in `benchmarks.py`), keys excluded from cache/DB, `type="password"` on the frontend, never in localStorage.
 
-## Environment Configuration
+## Rate Limiting
 
-**Required env vars:**
+`slowapi` middleware using `get_remote_address`:
+- Global: 60 requests/minute
+- `POST /api/benchmarks`: 10/minute
 
-- `DATABASE_URL` — PostgreSQL or SQLite connection string
-- `REDIS_URL` — Redis connection string (optional)
-- `OPENAI_API_KEY` — OpenAI API key
-- `ANTHROPIC_API_KEY` — Anthropic API key
-- `GEMINI_API_KEY` — Google Gemini API key
-- `OPENROUTER_API_KEY` — OpenRouter API key
-- `OLLAMA_BASE_URL` — Ollama server URL (default `http://localhost:11434`)
-- `VLLM_BASE_URL` — vLLM server URL (default `http://localhost:8001`)
-- `CORS_ORIGINS` — Comma-separated list of allowed origins (default `http://localhost:5173`)
-- `VITE_API_URL` — Frontend API proxy target (default `http://localhost:8000`)
+## Fly.io Production
 
-**Secrets location:** `.env` file in the `backend/` directory (gitignored, `python-dotenv` loads it). No encrypted secret store or vault configured.
+`fly.toml`: single machine (`shared-cpu-1x`, 1024 MB) in `sin` region. HTTPS forced. Dockerfile at `backend/Dockerfile` (multi-stage: builds frontend, then serves via FastAPI + static files). Deploy via `.github/workflows/deploy.yml` (triggers on push to main + manual `workflow_dispatch`).
 
-## Webhooks & Callbacks
+## CI/CD
 
-**Incoming:** None (no webhook endpoints configured in the API).
-
-**Outgoing:** None (the application does not call external webhooks or send notifications to third parties).
-
----
-
-_Integration audit: 2026-07-26_
+`.github/workflows/ci.yml`: runs on push/PR to main. Backend: ruff + pytest. Frontend: tsc + eslint. `.github/workflows/deploy.yml`: `flyctl deploy` on push to main.
