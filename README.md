@@ -55,13 +55,13 @@ Your key is sent with that single benchmark request and immediately discarded. I
 
 ### Privacy
 
-| Invariant | How |
-|---|---|
-| Keys never persisted | Transient Python attribute, no ORM column |
-| Keys never cached | BYOK results skip the response cache |
-| Keys never logged | Only the provider name is logged at debug level |
-| Keys never in errors | Provider error messages are sanitized before returning |
-| Keys never in browser storage | React `useState` only — cleared on tab close |
+| Invariant                     | How                                                    |
+| ----------------------------- | ------------------------------------------------------ |
+| Keys never persisted          | Transient Python attribute, no ORM column              |
+| Keys never cached             | BYOK results skip the response cache                   |
+| Keys never logged             | Only the provider name is logged at debug level        |
+| Keys never in errors          | Provider error messages are sanitized before returning |
+| Keys never in browser storage | React `useState` only — cleared on tab close           |
 
 ### Provider-specific notes
 
@@ -75,7 +75,7 @@ Include `client_keys` in your `POST /api/benchmarks` request:
 ```json
 {
   "prompt": "Explain quantum computing",
-  "models": [{"provider": "openai", "model": "gpt-4o-mini"}],
+  "models": [{ "provider": "openai", "model": "gpt-4o-mini" }],
   "client_keys": {
     "openai": "sk-proj-..."
   }
@@ -151,6 +151,7 @@ runs and eliminate provider cost for cached results. Redis is the primary
 backend with an automatic in-memory fallback when Redis is unavailable.
 
 **Frontend visibility:** After running a benchmark, the results page shows:
+
 - **Cache hit/miss badges** next to each result's status badge
 - **Cache performance card** — side-by-side comparison of provider latency,
   cache lookup time, total latency, and cost
@@ -177,6 +178,19 @@ promptbench cache warm bench.yaml    # pre-populate the cache
 
 See [docs/caching.md](docs/caching.md) for the full architecture, cache key
 design, TTL strategy, and invalidation rules.
+
+## Deployment
+
+PromptBench deploys as a single container: `backend/Dockerfile` is a multi-stage build that compiles the frontend and serves it from the FastAPI app, so API and UI share one origin.
+
+**Dokku** (current target — `https://prompt-bench.itman.fyi`):
+
+```sh
+git remote add dokku dokku@docklight.itman.fyi:prompt-bench
+git push dokku main
+```
+
+Pushes to `main` auto-deploy via `.github/workflows/deploy.yml` (requires the `DOKKU_SSH_KEY` repo secret). See [DEPLOY_DOKKU.md](DEPLOY_DOKKU.md) for full one-time server setup (app, domain, SSL, persistent SQLite volume, env vars).
 
 ## Testing with OpenRouter Free Models
 
@@ -216,19 +230,19 @@ curl -X POST http://localhost:8000/api/benchmarks -H 'Content-Type: application/
 
 ## API Overview
 
-| Method | Endpoint                | Description                                      |
-| ------ | ----------------------- | ------------------------------------------------ |
-| GET    | `/api/providers`        | List providers and models                        |
-| POST   | `/api/benchmarks`       | Run a benchmark (supports `client_keys` for BYOK) |
-| GET    | `/api/benchmarks`       | List benchmark history                           |
-| GET    | `/api/benchmarks/{id}`  | Get a single benchmark                           |
-| DELETE | `/api/benchmarks/{id}`  | Delete a benchmark                               |
-| GET    | `/api/insights`         | Cost & performance insights                      |
-| GET    | `/api/cache/stats`      | Cache statistics (backend, entries, hit rate)     |
-| DELETE | `/api/cache`            | Clear all cache entries (or `?prefix=` subset)    |
-| POST   | `/api/session-key`      | Store a BYOK key for the current session         |
-| DELETE | `/api/session-key`      | Clear all session-scoped BYOK keys               |
-| GET    | `/api/session-key`      | List providers with saved session keys            |
+| Method | Endpoint               | Description                                       |
+| ------ | ---------------------- | ------------------------------------------------- |
+| GET    | `/api/providers`       | List providers and models                         |
+| POST   | `/api/benchmarks`      | Run a benchmark (supports `client_keys` for BYOK) |
+| GET    | `/api/benchmarks`      | List benchmark history                            |
+| GET    | `/api/benchmarks/{id}` | Get a single benchmark                            |
+| DELETE | `/api/benchmarks/{id}` | Delete a benchmark                                |
+| GET    | `/api/insights`        | Cost & performance insights                       |
+| GET    | `/api/cache/stats`     | Cache statistics (backend, entries, hit rate)     |
+| DELETE | `/api/cache`           | Clear all cache entries (or `?prefix=` subset)    |
+| POST   | `/api/session-key`     | Store a BYOK key for the current session          |
+| DELETE | `/api/session-key`     | Clear all session-scoped BYOK keys                |
+| GET    | `/api/session-key`     | List providers with saved session keys            |
 
 ## Author
 
