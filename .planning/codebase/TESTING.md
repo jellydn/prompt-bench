@@ -2,13 +2,13 @@
 
 ## Framework
 
-| Layer | Framework | Runner |
-|-------|-----------|--------|
-| Backend | pytest ≥8.0.0 | `uv run pytest` |
-| Async | pytest-asyncio ≥0.25.0 | `asyncio_mode = "auto"` |
-| Coverage | pytest-cov ≥5.0.0 | — |
-| Redis mocking | fakeredis ≥2.0.0 | In-memory fake Redis |
-| Frontend | Vitest + React Testing Library | `npx vitest` (planned, not yet configured) |
+| Layer         | Framework                      | Runner                                     |
+| ------------- | ------------------------------ | ------------------------------------------ |
+| Backend       | pytest ≥8.0.0                  | `uv run pytest`                            |
+| Async         | pytest-asyncio ≥0.25.0         | `asyncio_mode = "auto"`                    |
+| Coverage      | pytest-cov ≥5.0.0              | —                                          |
+| Redis mocking | fakeredis ≥2.0.0               | In-memory fake Redis                       |
+| Frontend      | Vitest + React Testing Library | `npx vitest` (planned, not yet configured) |
 
 ## Test Structure
 
@@ -64,11 +64,11 @@ Uses WAL journal mode + NullPool to avoid SQLite write-lock contention with alem
 
 Three test classes inheriting from `_BYOKTestBase`:
 
-| Class | Provider | Tests | Auth mechanism |
-|-------|----------|-------|---------------|
-| `TestBYOKAuthHeader` | OpenAI | 6 | Authorization: Bearer header |
-| `TestBYOKAnthropicAuthHeader` | Anthropic | 5 | x-api-key header |
-| `TestBYOKGeminiAuthHeader` | Gemini | 7 | URL query param (?key=...) |
+| Class                         | Provider  | Tests | Auth mechanism               |
+| ----------------------------- | --------- | ----- | ---------------------------- |
+| `TestBYOKAuthHeader`          | OpenAI    | 6     | Authorization: Bearer header |
+| `TestBYOKAnthropicAuthHeader` | Anthropic | 5     | x-api-key header             |
+| `TestBYOKGeminiAuthHeader`    | Gemini    | 7     | URL query param (?key=...)   |
 
 Each class tests: BYOK key used, server key fallback, no-key behavior, BYOK priority over server key, multi-chunk SSE stream persistence. Gemini additionally tests key sanitization in error response URLs.
 
@@ -88,20 +88,20 @@ Each class tests: BYOK key used, server key fallback, no-key behavior, BYOK prio
 
 ## Test Counts
 
-| File | Tests |
-|------|-------|
-| `test_providers.py` | 18 BYOK + 7 pricing + 4 SSE parsing + 1 dataclass = 30 |
-| `test_benchmarks.py` | ~7 (CRUD + edge cases) |
-| `test_cache.py` | ~65 (response + embedding cache) |
+| File                 | Tests                                                       |
+| -------------------- | ----------------------------------------------------------- |
+| `test_providers.py`  | 18 BYOK + 7 pricing + 4 SSE parsing + 1 dataclass = 30      |
+| `test_benchmarks.py` | ~7 (CRUD + edge cases)                                      |
+| `test_cache.py`      | ~65 (response + embedding cache)                            |
 | `test_migrations.py` | 3 (config check + full cycle + downgrade data preservation) |
-| **Total** | **106** |
+| **Total**            | **106**                                                     |
 
 ## CI
 
-| Workflow | File | Trigger |
-|----------|------|---------|
-| CI | `.github/workflows/ci.yml` | push, pull_request |
-| Deploy | `.github/workflows/deploy.yml` | push to main, workflow_dispatch |
+| Workflow | File                           | Trigger                         |
+| -------- | ------------------------------ | ------------------------------- |
+| CI       | `.github/workflows/ci.yml`     | push, pull_request              |
+| Deploy   | `.github/workflows/deploy.yml` | push to main, workflow_dispatch |
 
 CI runs: ruff, pytest, tsc --noEmit.
-Deploy runs: `fly deploy` to prompt-bench.fly.dev.
+Deploy runs: `git push dokku@docklight.itman.fyi:prompt-bench` → https://prompt-bench.itman.fyi.

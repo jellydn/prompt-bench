@@ -13,7 +13,7 @@ prompt-bench/
 ├── README.md                  # Project documentation
 ├── LICENSE                    # MIT
 ├── docker-compose.yml         # Local full-stack (postgres, redis, backend, frontend)
-├── fly.toml                   # Fly.io deployment config
+├── DEPLOY_DOKKU.md           # Dokku deployment runbook (prompt-bench.itman.fyi)
 ├── justfile                   # Just task runner
 ├── prek.toml                  # Prek config
 ├── backend/
@@ -92,18 +92,19 @@ prompt-bench/
 
 ## Key Locations
 
-| What | Where |
-|------|-------|
-| Entry point | `backend/app/main.py` (FastAPI), `frontend/src/main.tsx` (React) |
-| Database models | `backend/app/models.py` |
-| API endpoints | `backend/app/routers/*.py` |
-| AI providers | `backend/app/providers/*.py` |
-| Cache logic | `backend/app/cache/*.py` |
-| Migrations | `backend/alembic/versions/*.py` |
-| BYOK tests | `backend/tests/test_providers.py` (3 classes, 18 tests) |
-| Downgrade test | `backend/tests/test_migrations.py::test_downgrade_preserves_non_cache_data` |
-| Dependencies | `backend/pyproject.toml`, `frontend/package.json` |
-| Docker build | `backend/Dockerfile`, `.dockerignore` |
-| Dev server | `frontend/` (Vite :5173), `backend/` (Uvicorn :8000) |
-| Codemap | `.planning/codebase/` (7 .md files) |
-| ADRs | `docs/adr/` (10 records: 001–010) |
+| What            | Where                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| Entry point     | `backend/app/main.py` (FastAPI), `frontend/src/main.tsx` (React)                   |
+| Database models | `backend/app/models.py`                                                            |
+| API endpoints   | `backend/app/routers/*.py`                                                         |
+| AI providers    | `backend/app/providers/*.py`                                                       |
+| Cache logic     | `backend/app/cache/*.py`                                                           |
+| Migrations      | `backend/alembic/versions/*.py`                                                    |
+| BYOK tests      | `backend/tests/test_providers.py` (3 classes, 18 tests)                            |
+| Downgrade test  | `backend/tests/test_migrations.py::test_downgrade_preserves_non_cache_data`        |
+| Dependencies    | `backend/pyproject.toml`, `frontend/package.json`                                  |
+| Docker build    | `backend/Dockerfile`, `.dockerignore`                                              |
+| Deployment      | `DEPLOY_DOKKU.md`, `.github/workflows/deploy.yml` (Dokku → prompt-bench.itman.fyi) |
+| Dev server      | `frontend/` (Vite :5173), `backend/` (Uvicorn :8000)                               |
+| Codemap         | `.planning/codebase/` (7 .md files)                                                |
+| ADRs            | `docs/adr/` (10 records: 001–010)                                                  |

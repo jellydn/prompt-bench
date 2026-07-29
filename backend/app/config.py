@@ -12,10 +12,10 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     ollama_base_url: str = "http://localhost:11434"
     vllm_base_url: str = "http://localhost:8001"
-    cors_origins: list[str] = ["http://localhost:5173", "https://prompt-bench.fly.dev"]
+    cors_origins: list[str] = ["http://localhost:5173", "https://prompt-bench.itman.fyi"]
 
     # ── Local providers (vLLM, Ollama) ─────────────────────────────────
-    # Set to False in production (Fly.io) to hide providers that need
+    # Set to False in production (e.g. Dokku) to hide providers that need
     # a locally-running inference server.
     enable_local_providers: bool = True
 
