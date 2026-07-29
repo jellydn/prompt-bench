@@ -8,21 +8,23 @@
 
 PromptBench ships as a **single container**: `backend/Dockerfile` is a multi-stage build that compiles the frontend and copies it into `/app/static`, then the FastAPI app serves both the API (`/api/*`) and the UI (`/`) from one origin. The container `EXPOSE`s `8000`.
 
-> **⚠️ Required before the first push.** The Dockerfile lives at `backend/Dockerfile`, not the repo root. Without the config below, Dokku falls back to Herokuish buildpack detection and the build fails with `Unable to select a buildpack`:
+> **⚠️ Required before the first push.** The Dockerfile lives at `backend/Dockerfile`, not the repo root. Dokku's auto-detection only selects the dockerfile builder when a `Dockerfile` exists at the repo root; otherwise it falls back to Herokuish buildpacks and the build fails with `Unable to select a buildpack`. Two commands fix this — force the dockerfile builder, then point it at the non-root path:
 >
 > ```sh
-> dokku config:set prompt-bench DOKKU_DOCKERFILE_PATH=backend/Dockerfile
+> dokku builder:set prompt-bench selected dockerfile
+> dokku builder-dockerfile:set prompt-bench dockerfile-path backend/Dockerfile
 > ```
 
 ## How Dokku builds it
 
-Dokku uses the repo root as the Docker build context. The production Dockerfile lives at `backend/Dockerfile`, so tell Dokku where to find it (run this **before** the first `git push`):
+Dokku uses the repo root as the Docker build context (so `COPY frontend/...` and `COPY backend/...` in the Dockerfile resolve correctly). The production Dockerfile lives at `backend/Dockerfile`, so tell Dokku to use the dockerfile builder and where to find it (run this **before** the first `git push`):
 
 ```sh
-dokku config:set prompt-bench DOKKU_DOCKERFILE_PATH=backend/Dockerfile
+dokku builder:set prompt-bench selected dockerfile
+dokku builder-dockerfile:set prompt-bench dockerfile-path backend/Dockerfile
 ```
 
-This mirrors the old `fly.toml` setup (`[build] dockerfile = "backend/Dockerfile"`) — no new Dockerfile, no duplication.
+`builder:set ... selected dockerfile` overrides auto-detection (which would pick Herokuish, since there's no root `Dockerfile`). `builder-dockerfile:set ... dockerfile-path` points the builder at the non-root Dockerfile. This mirrors the old `fly.toml` setup (`[build] dockerfile = "backend/Dockerfile"`) — no new Dockerfile, no duplication.
 
 ## One-time server setup
 
@@ -32,10 +34,11 @@ Run on the Dokku server (`ssh dokku@docklight.itman.fyi`):
 # 1. Create the app
 dokku apps:create prompt-bench
 
-# 2. Point Dokku at the production Dockerfile (repo-root context)
-#    ⚠️ REQUIRED before the first push, or the build fails with
-#    "Unable to select a buildpack" (Dokku falls back to Herokuish).
-dokku config:set prompt-bench DOKKU_DOCKERFILE_PATH=backend/Dockerfile
+# 2. Force the dockerfile builder + point it at the non-root Dockerfile
+#    ⚠️ REQUIRED before the first push. Without this, Dokku auto-detects
+#    Herokuish (no root Dockerfile) and fails: "Unable to select a buildpack".
+dokku builder:set prompt-bench selected dockerfile
+dokku builder-dockerfile:set prompt-bench dockerfile-path backend/Dockerfile
 
 # 3. Add the domain
 dokku domains:add prompt-bench prompt-bench.itman.fyi

@@ -56,7 +56,7 @@ uvicorn app.main:app --reload --port 8000
 ## Deployment (Dokku)
 
 - **Host:** `dokku@docklight.itman.fyi` · **App:** `prompt-bench` · **Domain:** `https://prompt-bench.itman.fyi`
-- **Build:** Dokku builds `backend/Dockerfile` with the repo root as context (set `DOKKU_DOCKERFILE_PATH=backend/Dockerfile` **before the first push**, or Dokku falls back to Herokuish buildpacks and fails with `Unable to select a buildpack`). The image bundles the compiled frontend into `/app/static`; FastAPI serves it (single origin). `EXPOSE 8000`.
+- **Build:** Dokku builds `backend/Dockerfile` with the repo root as context. Two server commands are required **before the first push** (Dokku auto-detects Herokuish since there's no root `Dockerfile`, and fails with `Unable to select a buildpack`): `dokku builder:set prompt-bench selected dockerfile` + `dokku builder-dockerfile:set prompt-bench dockerfile-path backend/Dockerfile`. The image bundles the compiled frontend into `/app/static`; FastAPI serves it (single origin). `EXPOSE 8000`.
 - **Deploy:** `git push dokku main` (remote `dokku dokku@docklight.itman.fyi:prompt-bench`). CI auto-deploys on push to `main` via `.github/workflows/deploy.yml` (secret `DOKKU_SSH_KEY`).
 - **Persistence:** SQLite on a Dokku storage mount at `/app/data/promptbench.db` (`DATABASE_URL=sqlite:////app/data/promptbench.db`); without it the DB is wiped on redeploy.
 - **Prod env:** `ENABLE_LOCAL_PROVIDERS=false` (hide Ollama/vLLM); provider API keys via `dokku config:set`. Redis/Postgres optional via Dokku plugins.
